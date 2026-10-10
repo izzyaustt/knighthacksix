@@ -12,6 +12,8 @@ import { cachedTts } from './src/ttsCache.ts';
 import { scoreAttempt } from './src/scoring.ts';
 import { createPool } from './database.mjs';
 import { createDataRouter, createAttemptHandler } from './data-routes.mjs';
+import { authRoutes } from './auth.mjs';
+
 
 const app = express();
 const aiConfig = getAIConfig();
@@ -19,6 +21,7 @@ const pool = createPool();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
 app.use(cors());
 app.use(express.json({ limit: '2mb' }));
+app.use(authRoutes(pool));
 
 const CACHE_FILE = new URL('./.cache/align.json', import.meta.url);
 fs.mkdirSync(new URL('./.cache/', import.meta.url), { recursive: true });
