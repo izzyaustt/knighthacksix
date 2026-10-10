@@ -120,7 +120,8 @@ Or `RUN_DB_TESTS=1 npm run test:db`. It tests real database routes with mocked t
 | Symptom | First check |
 | --- | --- |
 | No toolbar | Rebuild, reload extension card, refresh YouTube; check extension errors. |
-| Waiting for captions | Use an English-captioned video and turn CC on. |
+| Waiting for captions | Use an English-captioned video and turn CC on. If CC says unavailable after a refresh, turn it off and back on. |
+| Preparing Spanish captions | Playback pauses until the current captions and four seconds ahead are translated, then resumes automatically. Ollama can take longer than the spoken caption. Turn bilingual captions off to continue in English. |
 | Backend connection error | Start localhost:3000; inspect the extension's service worker from its card. |
 | Translation/explanation failure | Backend terminal, Gemini key/model/quota. Retry after fixing configuration. |
 | Saved phrase missing | `/health/database`, `.env`, trusted certificate path. |

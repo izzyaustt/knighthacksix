@@ -15,6 +15,7 @@ const CSS = `
 #ll-overlay [data-pair-index]:hover { text-decoration:underline; }
 #ll-overlay .ll-src { font-size: .9em; opacity: .85; }
 #ll-overlay .ll-tgt { font-weight: 700; }
+#ll-overlay .ll-loading { font-size: .7em; color: #fff; font-weight: 400; }
 `;
 
 let observer: ResizeObserver | null = null;
@@ -35,7 +36,7 @@ export function mountOverlay(): { root: HTMLElement; destroy(): void } {
     root = document.createElement('div');
     root.id = 'll-overlay';
     root.hidden = true;
-    for (const cls of ['ll-src', 'll-tgt']) {
+    for (const cls of ['ll-src', 'll-tgt', 'll-loading']) {
       const row = document.createElement('div');
       row.className = cls;
       root.append(row);
@@ -65,8 +66,10 @@ export function renderLine(root: HTMLElement, line: AlignedLine | null) {
   const src = root.querySelector<HTMLElement>('.ll-src');
   const tgt = root.querySelector<HTMLElement>('.ll-tgt');
   if (!src || !tgt) return;
-  if (!line) {
-    root.hidden = true;
+  // YouTube's native English caption remains visible while translation loads.
+  // Showing the source here too would create two identical English captions.
+  if (!line?.tgt) {
+    root.hidden = root.dataset.waiting !== 'true';
     src.replaceChildren();
     tgt.replaceChildren();
     return;
@@ -75,4 +78,13 @@ export function renderLine(root: HTMLElement, line: AlignedLine | null) {
   tgt.replaceChildren(renderColored(line.tgt, line.pairs.map((p) => p.tgt)));
   tgt.hidden = !line.tgt;
   root.hidden = false;
+}
+
+export function renderBuffering(root: HTMLElement, waiting: boolean) {
+  const label = root.querySelector<HTMLElement>('.ll-loading');
+  if (!label) return;
+  root.dataset.waiting = String(waiting);
+  label.textContent = waiting ? 'Preparing Spanish captions… Playback will resume automatically. Turn bilingual captions off to continue in English.' : '';
+  label.hidden = !waiting;
+  root.hidden = !waiting && !root.querySelector('.ll-tgt')?.textContent;
 }

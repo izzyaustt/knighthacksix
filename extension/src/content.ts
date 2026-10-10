@@ -2,9 +2,11 @@ import { api } from './api';
 import { openPractice, resetPractice } from './practice';
 import { alignLines } from './align';
 import { logEvent } from './events';
-import { mountOverlay, renderLine } from './overlay';
+import { mountOverlay, renderLine, renderBuffering } from './overlay';
+import { createCaptionBuffer } from './caption-buffer';
 import { createPanel } from './panel';
-import { startSync, findLine } from './sync';
+import { startSync } from './sync';
+import { nextBatchOffset } from './translation-queue';
 import type { AlignedLine, Line } from './types';
 import { startWatchTracker, type WatchTracker } from './watch';
 
@@ -21,6 +23,8 @@ let stopSync: (() => void) | null = null;
 let overlay: ReturnType<typeof mountOverlay> | null = null;
 let watch: WatchTracker | null = null;
 let captionsOn = true;
+let aligningGeneration: number | null = null;
+let captionBuffer: ReturnType<typeof createCaptionBuffer> | null = null;
 
 const isWatchPage = () => location.pathname === '/watch';
 const findVideo = () => document.querySelector<HTMLVideoElement>('#movie_player video.html5-main-video');
@@ -91,11 +95,16 @@ function start(videoId: string | null, lines: Line[]) {
     .map((l) => ({ start: l.start, end: l.end, src: l.text, tgt: '', pairs: [] }))
     .sort((a, b) => a.start - b.start);
   currentLines = aligned;
+  captionBuffer = createCaptionBuffer(video, () => aligned, waiting => {
+    renderBuffering(root, waiting);
+  });
+  captionBuffer.setEnabled(captionsOn);
   stopSync = startSync(video, () => aligned, (line) => {
     currentLine = line;
     applyCaptionsVisibility();
     renderLine(root, line);
     panel.setLine(line);
+    captionBuffer?.update();
   });
 
   // caption_view: once when captions load, then once per minute actually watched.
@@ -108,35 +117,46 @@ function start(videoId: string | null, lines: Line[]) {
 
 // First batch right away, then the rest in the background, merging each batch in place.
 async function alignProgressively(aligned: AlignedLine[], gen: number) {
-  let BATCH = 3;
-  try { const health = await api('/health', {}); BATCH = health.ai?.batch_size === 3 ? 3 : 30; }
-  catch (error) { console.warn('[LL content] backend unavailable', error); panel.setStatus({ kind: 'ready', total: 1, failed: 1 }); return; }
-  if (gen !== generation) return;
-  const total = Math.ceil(aligned.length / BATCH);
-  let failed = 0;
-  panel.setStatus({ kind: 'aligning', done: 0, total });
-  const active = findLine(aligned, findVideo()?.currentTime ?? 0);
-  const first = Math.floor(Math.max(0, active ? aligned.indexOf(active) : 0) / BATCH) * BATCH;
-  const offsets = [first, ...Array.from({ length: total }, (_, i) => i * BATCH).filter(i => i !== first)];
-  for (const [done, offset] of offsets.entries()) {
+  if (aligningGeneration === gen) return;
+  aligningGeneration = gen;
+  try {
+    let BATCH = 3;
+    try { const health = await api('/health', {}); BATCH = health.ai?.batch_size === 3 ? 3 : 30; }
+    catch (error) { console.warn('[LL content] backend unavailable', error); panel.setStatus({ kind: 'ready', total: 1, failed: 1 }); return; }
     if (gen !== generation) return;
-    try {
-      const batch = aligned.slice(offset, offset + BATCH);
-      const result = await alignLines(batch.map((l) => ({ start: l.start, end: l.end, text: l.src })), sessionVideoId!, offset);
+    const total = Math.ceil(aligned.length / BATCH);
+    let failed = 0;
+    panel.setStatus({ kind: 'aligning', done: 0, total });
+    const attempted = new Set<number>();
+    while (true) {
+      const offset = nextBatchOffset(aligned, findVideo()?.currentTime ?? 0, BATCH, attempted);
+      if (offset === null) break;
       if (gen !== generation) return;
-      result.slice(0, batch.length).forEach((line, i) => { aligned[offset + i] = line; });
-    } catch (err) {
-      if (gen !== generation) return;
-      failed++;
-      console.warn('[LL content] align failed for batch at', offset, err);
+      attempted.add(offset);
+      try {
+        const batch = aligned.slice(offset, offset + BATCH);
+        const result = await alignLines(batch.map((l) => ({ start: l.start, end: l.end, text: l.src })), sessionVideoId!, offset);
+        if (gen !== generation) return;
+        result.slice(0, batch.length).forEach((line, i) => { aligned[offset + i] = line; });
+      } catch (err) {
+        if (gen !== generation) return;
+        failed++;
+        console.warn('[LL content] align failed for batch at', offset, err);
+      }
+      const done = Array.from({ length: total }, (_, i) => aligned.slice(i * BATCH, (i + 1) * BATCH).every(line => !!line.tgt)).filter(Boolean).length;
+      panel.setStatus({ kind: 'aligning', done, total });
+      captionBuffer?.update();
     }
-    panel.setStatus({ kind: 'aligning', done: done + 1, total });
+    panel.setStatus({ kind: 'ready', total, failed });
+  } finally {
+    if (aligningGeneration === gen) aligningGeneration = null;
   }
-  panel.setStatus({ kind: 'ready', total, failed });
 }
 
 function reset() {
   generation++;
+  captionBuffer?.destroy();
+  captionBuffer = null;
   currentLines = []; currentLine = null; resetPractice();
   stopSync?.();
   stopSync = null;
@@ -153,6 +173,7 @@ function reset() {
 // Panel toggle: show our overlay and hide YouTube's, or the reverse.
 function setCaptionsOn(on: boolean) {
   captionsOn = on;
+  captionBuffer?.setEnabled(on);
   if (!on) resetPractice();
   if (sessionVideoId) applyCaptionsVisibility();
 }
