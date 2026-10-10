@@ -1,18 +1,14 @@
-import { GoogleGenAI } from '@google/genai';
-
-// LLM_PROVIDER=ollama uses a local Ollama model (free, for local testing only).
-// Anything else, including unset, uses Gemini.
-export const provider = () => (process.env.LLM_PROVIDER?.trim().toLowerCase() === 'ollama' ? 'ollama' : 'gemini');
-
-let gemini;
-
-// Gemini schemas use upper-case type names; JSON Schema (Ollama) wants lower-case.
-function jsonSchema(schema) {
-  if (Array.isArray(schema)) return schema.map(jsonSchema);
-  if (!schema || typeof schema !== 'object') return schema;
-  return Object.fromEntries(Object.entries(schema).map(([k, v]) =>
+// Compatibility entry point for Simone's integration. One shared provider implementation
+// keeps cache identity, defaults and local-only behavior consistent across the backend.
+import { generateJSON, getAIConfig } from './ai-provider.mjs';
+export const provider = () => getAIConfig().provider;
+function jsonSchema(value) {
+  if (Array.isArray(value)) return value.map(jsonSchema);
+  if (!value || typeof value !== 'object') return value;
+  return Object.fromEntries(Object.entries(value).map(([k, v]) =>
     [k, k === 'type' && typeof v === 'string' ? v.toLowerCase() : jsonSchema(v)]));
 }
+<<<<<<< HEAD
 
 async function ollama({ system, contents, schema, temperature }) {
   const base = (process.env.OLLAMA_URL || 'http://localhost:11434').replace(/\/+$/, '');
@@ -52,3 +48,6 @@ export async function generateJson({ system, contents, schema, temperature = 0.2
   });
   return JSON.parse(res.text);
 }
+=======
+export const generateJson = ({ system, contents, schema }) => generateJSON({ system, contents, schema: jsonSchema(schema) });
+>>>>>>> 3440fc2aa22654691a42c0d7c5fb16ee68108306

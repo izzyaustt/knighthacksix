@@ -85,3 +85,11 @@ The extension service worker calls this local server; keys remain in the backend
 `POST /explain` accepts `phrase`, optional `source`/`context`, and `lang=es`. It returns `gloss`, `grammar_note`, `example`, and `formality`, with a bounded in-memory cache.
 
 `MOCK=1 npm start` replaces **only** translation and explanations; TTS/STT are real provider calls and vocabulary/events use the real database. `npm run test:extension` verifies the mock HTTP contract without paid calls or database writes. See [the incremental testing guide](../docs/Testing%20the%20Extension.md).
+
+## Local AI testing and demo switch
+
+Use `npm run start:ollama` for local translation/explanations or `npm run start:gemini` for the demo. Both disable mock mode explicitly. Plain `npm start` defaults to Gemini and respects `AI_PROVIDER`/`MOCK` from your environment. Optional local settings: `OLLAMA_MODEL` (default `qwen2.5:3b`) and `OLLAMA_BASE_URL` (default `http://127.0.0.1:11434`). Gemini uses the existing `GEMINI_API_KEY`/`GEMINI_MODEL` settings. There is no automatic paid fallback.
+
+`GET /health` now includes `ai.provider`, `ai.model`, and `ai.batch_size` (3 locally, 30 with Gemini). `npm run check:ai` checks a fresh real translation against the active provider; Gemini mode consumes quota. Caches include provider/model. Restart the backend and refresh YouTube after changing providers.
+
+See [Ollama setup and the Gemini demo checklist](../docs/Ollama%20Testing%20and%20Gemini%20Demo.md). Ollama requires installing the app and downloading a local model. TTS/STT and database operations remain on their existing providers. `npm run test:ai` uses stubbed responses without paid calls.

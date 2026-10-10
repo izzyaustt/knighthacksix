@@ -120,7 +120,8 @@ Or `RUN_DB_TESTS=1 npm run test:db`. It tests real database routes with mocked t
 | Symptom | First check |
 | --- | --- |
 | No toolbar | Rebuild, reload extension card, refresh YouTube; check extension errors. |
-| Waiting for captions | Use an English-captioned video and turn CC on. |
+| Waiting for captions | Use an English-captioned video and turn CC on. If CC says unavailable after a refresh, turn it off and back on. |
+| Preparing Spanish captions | Playback pauses until the current captions and four seconds ahead are translated, then resumes automatically. Ollama can take longer than the spoken caption. Turn bilingual captions off to continue in English. |
 | Backend connection error | Start localhost:3000; inspect the extension's service worker from its card. |
 | Translation/explanation failure | Backend terminal, Gemini key/model/quota. Retry after fixing configuration. |
 | Saved phrase missing | `/health/database`, `.env`, trusted certificate path. |
@@ -128,3 +129,9 @@ Or `RUN_DB_TESTS=1 npm run test:db`. It tests real database routes with mocked t
 | Old code or `[ES]` after changing mode | Reload extension and refresh YouTube. |
 
 Automated checks validate the code and mock HTTP contract. Complete the Chrome, microphone, and real-provider checks before claiming the full user flow works.
+
+## Word clicks
+
+Every word in the extension’s English and Spanish caption rows is clickable and keyboard accessible. Phrase colors remain matching across the rows. Click an uncolored word to check that its contextual translation and short definition appear. Click More detail for grammar, an example and tone. Caption requests pause while the popup is open; a request already in progress may still delay the lookup. While the lookup loads, Save, Listen and Record are disabled. After it succeeds, Save stores the Spanish word or equivalent phrase with its English meaning. Close the popup and press Play when ready to continue.
+
+Rebuild and reload the extension, refresh YouTube, and restart the backend after updating this feature. Word lookups use the selected AI provider; mock mode returns a labelled placeholder instead of a real translation.

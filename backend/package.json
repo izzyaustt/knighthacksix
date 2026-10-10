@@ -8,7 +8,15 @@
     "start": "node server.mjs",
     "typecheck": "tsc",
     "test:db": "node --test test/database.test.mjs",
+<<<<<<< HEAD
     "test:extension": "node --test test/extension-api.test.mjs"
+=======
+    "test:extension": "node --test test/extension-api.test.mjs",
+    "start:ollama": "node start-provider.mjs ollama",
+    "start:gemini": "node start-provider.mjs gemini",
+    "test:ai": "node --test test/ai-provider.test.mjs",
+    "check:ai": "node check-ai.mjs"
+>>>>>>> 3440fc2aa22654691a42c0d7c5fb16ee68108306
   },
   "engines": {
     "node": ">=22.18.0"

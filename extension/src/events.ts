@@ -38,7 +38,7 @@ export function logEvent(e: LearningEvent): void {
     const score = e.score;
     void updateDay((d) => { d.shadow.push(score); });
   }
-  toWorker({ type: 'll:event', event: e });
+  if (e.event_type !== 'save' && e.event_type !== 'shadow_attempt') toWorker({ type: 'll:event', event: { ...e, event_id: crypto.randomUUID() } });
 }
 
 export async function getVocab(): Promise<VocabItem[]> {
@@ -57,8 +57,9 @@ export async function toggleVocab(item: Omit<VocabItem, 'saved_at'>): Promise<bo
     await chrome.storage.local.set({ [VOCAB_KEY]: list.filter((v) => !sameVocab(v, item)) });
     return false;
   }
+  const result = await chrome.runtime.sendMessage({ type: 'll:vocab', item });
+  if (!result?.ok) throw new Error('Could not save to the database. Check the backend connection and try again.');
   await chrome.storage.local.set({ [VOCAB_KEY]: [{ ...item, saved_at: Date.now() }, ...list].slice(0, 1000) });
-  toWorker({ type: 'll:vocab', item });
   logEvent({ event_type: 'save', video_id: item.video_id, word: item.word, lang: 'es', meta: { translation: item.translation, video_ts: item.video_ts } });
   return true;
 }

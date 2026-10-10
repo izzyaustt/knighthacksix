@@ -1,5 +1,5 @@
-// Extension settings. Until the options page exists, set them from the extension's DevTools:
-//   chrome.storage.local.set({ settings: { backendUrl: 'http://localhost:8000' } })
+// Hosted builds set VITE_BACKEND_URL and VITE_DASHBOARD_URL at build time.
+// These are public URLs; API keys belong only on the backend.
 
 export type Settings = {
   backendUrl: string;   // '' = no backend yet: events and saves stay local
@@ -11,9 +11,9 @@ export type Settings = {
 };
 
 export const DEFAULT_SETTINGS: Settings = {
-  backendUrl: '',
-  dashboardUrl: 'http://localhost:5173',
-  userId: 'demo',
+  backendUrl: import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000',
+  dashboardUrl: import.meta.env.VITE_DASHBOARD_URL || 'http://localhost:5173',
+  userId: 'demo-user',
   langSrc: 'en',
   langTgt: 'es',
   level: 'A2',
@@ -21,7 +21,10 @@ export const DEFAULT_SETTINGS: Settings = {
 
 export async function getSettings(): Promise<Settings> {
   const got = (await chrome.storage.local.get('settings')) as { settings?: Partial<Settings> };
-  return { ...DEFAULT_SETTINGS, ...got.settings };
+  return { ...DEFAULT_SETTINGS, ...got.settings,
+    ...(import.meta.env.VITE_BACKEND_URL ? { backendUrl: DEFAULT_SETTINGS.backendUrl } : {}),
+    ...(import.meta.env.VITE_DASHBOARD_URL ? { dashboardUrl: DEFAULT_SETTINGS.dashboardUrl } : {}),
+  };
 }
 
 export type DashboardContext = { videoId?: string | null; t?: number; range?: string };

@@ -109,3 +109,7 @@ Keep the extracted folder in a stable location while it is installed. If you mov
 | Changes are not visible | Rebuild, reload the extension in Chrome, then refresh YouTube. |
 
 To uninstall, open `chrome://extensions` and click **Remove** on the extension's card.
+
+## Free local AI testing
+
+The same extension works with Ollama or Gemini through the backend. Rebuild this version, then use the backend's `start:ollama` or `start:gemini` command. After switching, refresh YouTube; no additional extension rebuild is required. See [Ollama testing and Gemini demo](../docs/Ollama%20Testing%20and%20Gemini%20Demo.md).

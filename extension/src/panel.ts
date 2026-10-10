@@ -14,6 +14,8 @@ export type PanelStatus =
   | { kind: 'ready'; total: number; failed: number };
 
 export type PanelDeps = {
+  practice(line: AlignedLine, index?: number, trackLookup?: boolean): void;
+  retry(): void;
   getVideo(): HTMLVideoElement | null;
   getVideoId(): string | null;
   pendingWatch(): ReadonlyMap<number, number>;
@@ -57,6 +59,7 @@ const HTML = `
     <div class="chips" id="chips" aria-label="Phrase pairs"></div>
     <div class="note" id="note" hidden></div>
     <div class="line-actions">
+      <button type="button" class="btn ghost" id="practice">Practice / Listen</button>
       <button type="button" class="btn ghost" id="replay">↺ Replay</button>
       <button type="button" class="btn ghost" id="save" aria-pressed="false">☆ Save line</button>
     </div>
@@ -290,7 +293,7 @@ export function createPanel(deps: PanelDeps): PanelController {
       return { key: 'waiting', tone: 'info', text: 'Waiting for captions… If nothing appears, this video may not have English captions.' };
     }
     if (status.kind === 'ready' && status.failed) {
-      return { key: 'failed', tone: 'warn', text: `${status.failed} caption batch${status.failed > 1 ? 'es' : ''} couldn't be translated. Those lines show English only.` };
+      return { key: 'failed', tone: 'warn', text: `${status.failed} caption batch${status.failed > 1 ? 'es' : ''} couldn't be translated. Those lines show English only.`, actions: [['Retry translation', deps.retry]] };
     }
     if (!deps.captionsOn()) {
       return { key: 'cc-off', tone: 'info', text: 'Bilingual captions are hidden.', actions: [['Show them', () => setCaptions(true)]] };
@@ -365,6 +368,7 @@ export function createPanel(deps: PanelDeps): PanelController {
       }
     }
     renderLine();
+    if (pair && line.tgt) deps.practice(line, selected, false);
   }
 
   async function save(kind: 'auto' | 'line' = 'auto') {
@@ -402,8 +406,9 @@ export function createPanel(deps: PanelDeps): PanelController {
   function wire() {
     $('close').addEventListener('click', () => toggle(false));
     $('panel').addEventListener('keydown', (e) => { if (e.key === 'Escape') toggle(false); });
+    $('practice').addEventListener('click', () => { if (line?.tgt) deps.practice(line); });
     $('replay').addEventListener('click', replay);
-    $('save').addEventListener('click', () => void save());
+    $('save').addEventListener('click', () => void save().catch(error => { $('note').hidden = false; $('note').textContent = error.message; }));
     $('cc').addEventListener('click', () => setCaptions(!deps.captionsOn()));
     $('dash').addEventListener('click', openDashboard);
     for (const b of shadow.querySelectorAll<HTMLButtonElement>('.seg button')) {

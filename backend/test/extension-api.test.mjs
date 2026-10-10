@@ -20,6 +20,11 @@ test('mock extension API accepts captions/explanations and rejects invalid reque
       await new Promise(resolve => setTimeout(resolve, 50));
     }
     assert.ok(ready, `Server did not start: ${output}`);
+<<<<<<< HEAD
+=======
+    const health = await (await fetch(base + '/health')).json();
+    assert.equal(health.ai.provider, 'mock');
+>>>>>>> 3440fc2aa22654691a42c0d7c5fb16ee68108306
     const post = (path, body) => fetch(base + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const result = await post('/align', { videoId: 'test', lines: [{ start: 1, end: 3, text: 'hello world' }] });
     assert.equal(result.status, 200);
@@ -35,6 +40,18 @@ test('mock extension API accepts captions/explanations and rejects invalid reque
     const explanation = await post('/explain', { phrase: 'hola', source: 'hello', context: 'hola mundo' });
     assert.equal(explanation.status, 200);
     assert.equal((await explanation.json()).gloss, 'hello');
+<<<<<<< HEAD
+=======
+    for (const word_lang of ['en', 'es']) {
+      const word = await post('/explain', { phrase: 'test', word_lookup: true, word_lang });
+      assert.equal(word.status, 200);
+      assert.equal(typeof (await word.json()).translation, 'string');
+    }
+    assert.equal((await post('/explain', { phrase: 'word', word_lookup: 'true' })).status, 400);
+    assert.equal((await post('/explain', { phrase: 'word', word_lookup: true, word_lang: 'fr' })).status, 400);
+    assert.equal((await post('/explain', { phrase: 'word', word_lookup: true, detail: 'brief' })).status, 200);
+    assert.equal((await post('/explain', { phrase: 'word', detail: 'invalid' })).status, 400);
+>>>>>>> 3440fc2aa22654691a42c0d7c5fb16ee68108306
     assert.equal((await post('/explain', { phrase: '' })).status, 400);
     assert.equal((await post('/explain', { phrase: 'hola', lang: 'fr' })).status, 400);
   } finally {
