@@ -41,8 +41,9 @@ type Alert = { key: string; tone: 'info' | 'warn' | 'suggest'; text: string; act
 const HTML = `
 <aside class="panel" id="panel" role="complementary" aria-label="Learning panel" tabindex="-1">
  <div class="view signin" id="view-signin" hidden>
+  <div class="signin-top"><button type="button" class="icon collapse-panel" aria-label="Collapse panel" title="Collapse"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 17l5-5-5-5M6 17l5-5-5-5"></path></svg></button></div>
   <div class="brand">
-    <img class="wordmark" src="${LOGO_FULL}" alt="langtube" width="300" height="126">
+    <button type="button" class="brand-link" id="brand-link" title="Open dashboard"><img class="wordmark" src="${LOGO_FULL}" alt="langtube — open dashboard" width="300" height="126"></button>
     <p class="tagline">watch it, speak it, improve it</p>
     <p class="pitch">Learn Spanish from the YouTube videos you already watch. Tap any subtitle word to look it up and practice saying it.</p>
   </div>
@@ -70,7 +71,7 @@ const HTML = `
     </div>
     <span class="pill" id="pill" role="status"></span>
     <button type="button" class="icon sign-out" aria-label="Sign out" title="Sign out"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 4h3a2 2 0 012 2v12a2 2 0 01-2 2h-3"></path><path d="M10 16l-4-4 4-4M6 12h10"></path></svg></button>
-    <button type="button" class="icon close-panel" aria-label="Close panel"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+    <button type="button" class="icon collapse-panel" aria-label="Collapse panel" title="Collapse"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 17l5-5-5-5M6 17l5-5-5-5"></path></svg></button><button type="button" class="icon close-panel" aria-label="Close panel"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
   </header>
 
   <section id="alerts" aria-live="polite"></section>
@@ -116,12 +117,13 @@ const HTML = `
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"></path></svg>
     </button>
     <span class="topbar-title"><img class="logo small" src="${LOGO_MARK}" alt="" width="26" height="30"><span class="eyebrow" id="lookup-title">Word lookup</span></span>
-    <div class="top-actions"><button type="button" class="icon sign-out" aria-label="Sign out" title="Sign out"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 4h3a2 2 0 012 2v12a2 2 0 01-2 2h-3"></path><path d="M10 16l-4-4 4-4M6 12h10"></path></svg></button><button type="button" class="icon close-panel" aria-label="Close panel"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button></div>
+    <div class="top-actions"><button type="button" class="icon sign-out" aria-label="Sign out" title="Sign out"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 4h3a2 2 0 012 2v12a2 2 0 01-2 2h-3"></path><path d="M10 16l-4-4 4-4M6 12h10"></path></svg></button><button type="button" class="icon collapse-panel" aria-label="Collapse panel" title="Collapse"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 17l5-5-5-5M6 17l5-5-5-5"></path></svg></button><button type="button" class="icon close-panel" aria-label="Close panel"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button></div>
   </div>
   <div class="lookup-body" id="practice"></div>
   <footer><button type="button" class="dash-link">Open dashboard <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 01-1 1H5a1 1 0 01-1-1V7a1 1 0 011-1h5"></path></svg></button></footer>
  </div>
-</aside>`;
+</aside>
+<button type="button" class="bubble" id="bubble" aria-label="Expand langtube panel" title="langtube" hidden><img src="${LOGO_MARK}" alt="" width="26" height="30"></button>`;
 
 const SESSION_KEY = 'session'; // written by auth.ts in the service worker
 const FONTS_ID = 'll-fonts';
@@ -136,6 +138,7 @@ export function createPanel(deps: PanelDeps): PanelController {
   const $ = (id: string) => shadow.getElementById(id) as HTMLElement;
 
   let open = false;
+  let collapsed = false; // open, but shrunk to the logo bubble
   let status: PanelStatus = { kind: 'idle' };
   let range: '30m' | '24h' = '30m';
   let stats: { today: DayStats; yesterday: DayStats } = { today: emptyDay(), yesterday: emptyDay() };
@@ -342,7 +345,10 @@ export function createPanel(deps: PanelDeps): PanelController {
 
   function wire() {
     for (const b of shadow.querySelectorAll('.close-panel')) b.addEventListener('click', () => toggle(false));
+    for (const b of shadow.querySelectorAll('.collapse-panel')) b.addEventListener('click', () => setCollapsed(true));
+    $('bubble').addEventListener('click', () => setCollapsed(false));
     for (const b of shadow.querySelectorAll('.dash-link')) b.addEventListener('click', openDashboard);
+    $('brand-link').addEventListener('click', openDashboard);
     for (const a of shadow.querySelectorAll('[data-todo]')) a.addEventListener('click', (e) => e.preventDefault());
     $('signin').addEventListener('click', signIn);
     for (const b of shadow.querySelectorAll('.sign-out')) b.addEventListener('click', signOut);
@@ -403,7 +409,17 @@ export function createPanel(deps: PanelDeps): PanelController {
     if (open) $('signin').focus({ preventScroll: true });
   }
 
+  function setCollapsed(next: boolean) {
+    collapsed = next;
+    host.classList.toggle('collapsed', next);
+    $('panel').hidden = next;
+    $('bubble').hidden = !next;
+    if (open) $(next ? 'bubble' : 'panel').focus({ preventScroll: true });
+  }
+
   function toggle(force?: boolean) {
+    // While collapsed, the extension icon (or a word lookup) expands rather than closes.
+    if (open && collapsed && force !== false) { setCollapsed(false); return; }
     open = force ?? !open;
     if (open) {
       if (!host.isConnected) (document.fullscreenElement ?? document.body).append(host);
@@ -415,6 +431,7 @@ export function createPanel(deps: PanelDeps): PanelController {
       $('panel').focus({ preventScroll: true });
     } else {
       host.style.display = 'none';
+      setCollapsed(false);
       clearInterval(timer);
       deps.onClose?.();
     }
@@ -428,7 +445,7 @@ export function createPanel(deps: PanelDeps): PanelController {
         $('lookup-title').textContent = title;
         lookupOpen = true;
         renderView();
-        if (!open) toggle(true);
+        if (!open || collapsed) toggle(true);
         $('panel').scrollTop = 0;
       },
       hide() { lookupOpen = false; renderView(); },
