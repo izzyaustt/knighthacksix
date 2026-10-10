@@ -10,7 +10,7 @@ Set server-side environment variables in the hosting service:
 
 - `NODE_ENV=production`, `HOST=0.0.0.0`, `PORT` as required by the host.
 - `AI_PROVIDER=gemini`, `MOCK=0`, `GEMINI_API_KEY`, and a verified `GEMINI_MODEL` supported by your account.
-- `ELEVENLABS_API_KEY` and the voice settings used by the project.
+- `ELEVENLABS_API_KEY`, optionally `ELEVENLABS_VOICE_ID`, and `ELEVENLABS_TTS_MODEL=eleven_flash_v2_5` for fast Spanish practice. See [ElevenLabs practice](ElevenLabs%20Practice.md) for setup and testing.
 - `DATABASE_URL` and, if using the Tiger CA file, `PGSSLROOTCERT` pointing to a certificate mounted on the server. A developer's `/Users/...` path will not exist there. Keep certificate verification enabled.
 
 Put credentials in server secrets, never in the extension or `VITE_*` variables. Keep the backend's `.cache` directory writable; its current caption cache is local to each server instance and may reset on redeployment. Check `/health` and `/health/database` after deployment.

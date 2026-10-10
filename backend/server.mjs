@@ -58,7 +58,7 @@ app.post('/explain', async (req, res) => {
       typeof word_lookup !== 'boolean' || !['en', 'es'].includes(word_lang) || !['brief', 'full'].includes(detail)) {
     return res.status(400).json({ error: 'A Spanish phrase (up to 2000 characters) is required.' });
   }
-  if (process.env.MOCK === '1') return res.json({ gloss: source || 'Mock explanation', grammar_note: 'Mock mode: no Gemini request was made.', example: phrase, formality: 'Demo', ...(word_lookup ? { translation: `[mock] ${phrase}` } : {}) });
+  if (process.env.MOCK === '1') return res.json({ gloss: source || 'Mock explanation', grammar_note: 'Mock mode: no Gemini request was made.', example: phrase, formality: 'Demo', pronunciation: '', ...(word_lookup ? { translation: `[mock] ${phrase}` } : {}) });
   res.json(await explainPhrase({ phrase: phrase.trim(), source, context, word_lookup, word_lang, detail }));
 });
 
@@ -72,6 +72,8 @@ app.get('/health', (_req, res) => {
 app.post('/tts', async (req, res) => {
   const { text, speed } = req.body ?? {};
   if (typeof text !== 'string' || !text.trim()) return res.status(400).json({ error: 'text is required' });
+  if (text.length > 2000) return res.status(400).json({ error: 'Practice text must be 2,000 characters or fewer' });
+  if (speed !== undefined && (typeof speed !== 'number' || !Number.isFinite(speed))) return res.status(400).json({ error: 'speed must be a number' });
 
   const { audio, cached } = await cachedTts(text.trim(), Number(speed) || 1);
   res.set({ 'Content-Type': 'audio/mpeg', 'X-Cache': cached ? 'HIT' : 'MISS' }).send(audio);
