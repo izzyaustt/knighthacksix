@@ -58,7 +58,7 @@ app.post('/explain', async (req, res) => {
       typeof word_lookup !== 'boolean' || !['en', 'es'].includes(word_lang) || !['brief', 'full'].includes(detail)) {
     return res.status(400).json({ error: 'A Spanish phrase (up to 2000 characters) is required.' });
   }
-  if (process.env.MOCK === '1') return res.json({ gloss: source || 'Mock explanation', grammar_note: 'Mock mode: no Gemini request was made.', example: phrase, formality: 'Demo', pronunciation: '', ...(word_lookup ? { translation: `[mock] ${phrase}` } : {}) });
+  if (process.env.MOCK === '1') return res.json({ gloss: source || 'Mock explanation', grammar_note: 'Mock mode: no Gemini request was made.', why_here: 'Mock mode: no context explanation.', example: phrase, formality: 'Demo', pronunciation: '', ...(word_lookup ? { translation: `[mock] ${phrase}` } : {}) });
   res.json(await explainPhrase({ phrase: phrase.trim(), source, context, word_lookup, word_lang, detail }));
 });
 

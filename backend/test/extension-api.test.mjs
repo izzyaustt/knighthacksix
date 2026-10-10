@@ -39,7 +39,9 @@ test('mock extension API accepts captions/explanations and rejects invalid reque
     ]) assert.equal((await post('/align', body)).status, 400);
     const explanation = await post('/explain', { phrase: 'hola', source: 'hello', context: 'hola mundo' });
     assert.equal(explanation.status, 200);
-    assert.equal((await explanation.json()).gloss, 'hello');
+    const explained = await explanation.json();
+    assert.equal(explained.gloss, 'hello');
+    for (const field of ['grammar_note', 'why_here', 'example', 'formality']) assert.equal(typeof explained[field], 'string');
     for (const word_lang of ['en', 'es']) {
       const word = await post('/explain', { phrase: 'test', word_lookup: true, word_lang });
       assert.equal(word.status, 200);

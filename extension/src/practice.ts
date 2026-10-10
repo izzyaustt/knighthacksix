@@ -103,7 +103,7 @@ export async function openPractice(line: AlignedLine, pair?: Pair, trackLookup =
         updatePronunciation(snapshot.phrase);
         actions.querySelectorAll('button').forEach(b => { b.disabled = false; });
       }
-      notes.textContent = word ? explanation.gloss : `${explanation.gloss}\n${explanation.grammar_note}\nExample: ${explanation.example}\nTone: ${explanation.formality}`;
+      notes.textContent = word ? explanation.gloss : explanationText(explanation);
       if (word) {
         const more = button('More detail', async () => {
           more.disabled = true;
@@ -111,7 +111,7 @@ export async function openPractice(line: AlignedLine, pair?: Pair, trackLookup =
           try {
             const detail = await api('/explain', { phrase: snapshot.phrase, source: snapshot.translation, context: line.target, lang: 'es' });
             if (epoch !== selectionVersion) return;
-            notes.textContent = `${detail.gloss}\n${detail.grammar_note}\nExample: ${detail.example}\nTone: ${detail.formality}`;
+            notes.textContent = explanationText(detail);
             status.textContent = '';
           } finally { if (epoch === selectionVersion) more.disabled = false; }
         });
@@ -222,4 +222,9 @@ async function record() {
       feedback.textContent = `Microphone unavailable: ${error instanceof Error ? error.message : error}. Check microphone permission for YouTube in Chrome site settings.`;
     }
   }
+}
+
+function explanationText(e: { gloss: string; grammar_note: string; why_here?: string; example: string; formality: string }) {
+  return [e.gloss, e.grammar_note, e.why_here && `Why here: ${e.why_here}`, `Example: ${e.example}`, `Tone: ${e.formality}`]
+    .filter(Boolean).join('\n');
 }
