@@ -1,0 +1,6 @@
+node_modules
+.cache
+.env
+.env.*
+test
+*.pem
