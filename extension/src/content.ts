@@ -1,5 +1,5 @@
 import { api } from './api';
-import { openPractice, resetPractice, waitForPracticeClose } from './practice';
+import { attachPracticeView, openPractice, resetPractice, waitForPracticeClose } from './practice';
 import { alignLines } from './align';
 import { logEvent } from './events';
 import { mountOverlay, renderLine, renderBuffering } from './overlay';
@@ -42,9 +42,12 @@ const panel = createPanel({
   pendingWatch: () => watch?.pending() ?? new Map(),
   captionsOn: () => captionsOn,
   setCaptionsOn,
-  practice,
   retry() { void alignProgressively(currentLines, generation); },
+  // Leaving the lookup view ends practice, which also lets paused translation continue.
+  onClose: resetPractice,
+  onLookupBack: resetPractice,
 });
+attachPracticeView(panel.practice);
 panel.setStatus(isWatchPage() ? { kind: 'waiting' } : { kind: 'idle' });
 
 // The toolbar icon (or Alt+L) sends this via the service worker.
@@ -107,7 +110,6 @@ function start(videoId: string | null, lines: Line[]) {
     currentLine = line;
     applyCaptionsVisibility();
     renderLine(root, line);
-    panel.setLine(line);
     captionBuffer?.update();
   });
 
