@@ -2,3 +2,5 @@
 node_modules/
 dist/
 .env
+backend/.cache/
+.env
