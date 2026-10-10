@@ -1,6 +1,15 @@
 import { getSettings } from './settings';
+import { chooseGoogleAccount } from './google-signin';
 
 export const SESSION_KEY = 'session';
+let authRevision = 0;
+let sessionWrite: Promise<void> = Promise.resolve();
+
+function writeSession(action: () => Promise<void>): Promise<void> {
+  const next = sessionWrite.then(action);
+  sessionWrite = next.catch(() => {});
+  return next;
+}
 
 export type Session = {
   token: string;
@@ -20,35 +29,39 @@ export async function authHeaders(): Promise<Record<string, string>> {
 
 // The backend rejected our session (expired or revoked): drop it so the panel asks to sign in again.
 export async function clearSession() {
-  await chrome.storage.local.remove(SESSION_KEY);
+  authRevision++;
+  await writeSession(() => chrome.storage.local.remove([SESSION_KEY, 'll:signedIn']));
 }
 
 async function signIn(): Promise<Session> {
-  const { token: accessToken } = await chrome.identity.getAuthToken({ interactive: true });
-  if (!accessToken) throw new Error('Google sign-in was cancelled.');
+  const revision = ++authRevision;
+  const idToken = await chooseGoogleAccount(import.meta.env.VITE_GOOGLE_CLIENT_ID || '');
+  if (revision !== authRevision) throw new Error('Sign-in was cancelled. Please sign in again.');
   const { backendUrl } = await getSettings();
   const r = await fetch(new URL('/auth/google', backendUrl), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ accessToken }),
+    body: JSON.stringify({ idToken }),
   });
   if (!r.ok) {
     const failure = await r.json().catch(() => ({}));
     throw new Error(failure.error ?? `Sign-in failed (${r.status}).`);
   }
   const session = (await r.json()) as Session;
-  await chrome.storage.local.set({ [SESSION_KEY]: session });
+  await writeSession(async () => {
+    if (revision !== authRevision) throw new Error('Sign-in was cancelled. Please sign in again.');
+    await chrome.storage.local.set({ [SESSION_KEY]: session });
+  });
+  if (revision !== authRevision) throw new Error('Sign-in was cancelled. Please sign in again.');
   return session;
 }
 
 async function signOut() {
-  const res = await chrome.identity.getAuthToken({ interactive: false }).catch(() => null);
-  const token = res?.token;
-  if (token) {
-    await chrome.identity.removeCachedAuthToken({ token });
-    await fetch(`https://accounts.google.com/o/oauth2/revoke?token=${token}`).catch(() => {});
-  }
+  // Complete local logout before best-effort Google cache cleanup.
   await clearSession();
+  try {
+    void chrome.identity.clearAllCachedAuthTokens().catch(() => {});
+  } catch { /* Local session is already cleared. */ }
 }
 
 // Call once from background.ts. Handles the signin / signout / whoami messages.
@@ -63,7 +76,8 @@ export function registerAuth() {
       return true; // keeps the channel open for the async reply
     }
     if (msg?.type === 'signout') {
-      signOut().then(() => sendResponse({ ok: true }));
+      signOut().then(() => sendResponse({ ok: true }))
+        .catch((e) => sendResponse({ ok: false, error: String(e.message) }));
       return true;
     }
     if (msg?.type === 'whoami') {

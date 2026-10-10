@@ -31,7 +31,7 @@ Apply the existing schema before starting database-backed traffic; see [database
 
 `POST /auth/google` exchanges a Google credential for a 30-day session token:
 
-- The extension sends `{ accessToken }` from `chrome.identity.getAuthToken`. The backend checks that the token was issued to `GOOGLE_EXTENSION_CLIENT_ID` (the "Chrome Extension" OAuth client in `extension/manifest.json`).
+- The extension opens Google’s account chooser with `chrome.identity.launchWebAuthFlow` and sends `{ idToken }`, verified against `GOOGLE_WEB_CLIENT_ID`. The legacy `{ accessToken }` flow is still accepted for older extension builds and checked against `GOOGLE_EXTENSION_CLIENT_ID`.
 - The dashboard sends `{ idToken }` from Sign in with Google. The backend verifies it against `GOOGLE_WEB_CLIENT_ID` (a "Web application" OAuth client whose authorized JavaScript origins include the dashboard).
 
 Both require a verified Google email. The user is created or updated in `users` with their Google account ID as `user_id`, and the response is `{ token, user: { id, email, name } }`. `SESSION_SECRET` signs the token; set it to a long random value.
