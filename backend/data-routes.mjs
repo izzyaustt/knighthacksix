@@ -225,7 +225,7 @@ export function createAttemptHandler(pool, { stt, scoreAttempt }) {
       }
       let result;
       try { result = await stt(req.file.buffer, req.file.mimetype, lang); }
-      catch { throw bad('Speech provider request failed', 502); }
+      catch (error) { throw bad(error instanceof Error ? error.message : 'Speech provider request failed', 502); }
       const { score, words } = scoreAttempt(target, result.text);
       let savedAt;
       try {

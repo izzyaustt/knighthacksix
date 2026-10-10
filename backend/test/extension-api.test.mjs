@@ -23,6 +23,9 @@ test('mock extension API accepts captions/explanations and rejects invalid reque
     const health = await (await fetch(base + '/health')).json();
     assert.equal(health.ai.provider, 'mock');
     const post = (path, body) => fetch(base + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    for (const body of [{ text: '' }, { text: 'x'.repeat(2001) }, { text: 'hola', speed: 'fast' }]) {
+      assert.equal((await post('/tts', body)).status, 400);
+    }
     const result = await post('/align', { videoId: 'test', lines: [{ start: 1, end: 3, text: 'hello world' }] });
     assert.equal(result.status, 200);
     const data = await result.json();

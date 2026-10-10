@@ -20,3 +20,10 @@ button:focus-visible { outline:2px solid white; outline-offset:2px; }
 #feedback { color:#bae6fd; font-size:13px; }
 
 .panel { right:auto; left:12px; }
+button:disabled { opacity:.55; cursor:wait; }
+.word-results { display:flex; gap:6px; flex-wrap:wrap; }
+.word-results span { border:1px solid; border-radius:6px; padding:3px 7px; }
+.recognized { color:#86efac; background:#14532d66; }
+.retry { color:#fde68a; background:#78350f66; }
+#pronunciation { color:#bae6fd; font-size:16px; font-weight:600; }
+.pronunciation-hint { display:block; color:#cbd5e1; font-size:12px; }
