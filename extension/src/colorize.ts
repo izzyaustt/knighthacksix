@@ -24,18 +24,34 @@ export function findRanges(text: string, phrases: string[]): Range[] {
   return claimed.sort((a, b) => a.start - b.start);
 }
 
+export function wordSegments(text: string, phrases: string[]) {
+  const ranges = findRanges(text, phrases);
+  const segments: { text: string; word?: string; index?: number }[] = [];
+  let pos = 0;
+  for (const match of text.matchAll(/[\p{L}\p{N}]+(?:['’\-][\p{L}\p{N}]+)*/gu)) {
+    if (match.index > pos) segments.push({ text: text.slice(pos, match.index) });
+    const range = ranges.find(r => match.index >= r.start && match.index + match[0].length <= r.end);
+    segments.push({ text: match[0], word: match[0], index: range?.index });
+    pos = match.index + match[0].length;
+  }
+  if (pos < text.length) segments.push({ text: text.slice(pos) });
+  return segments;
+}
+
 export function renderColored(text: string, phrases: string[]): DocumentFragment {
   const frag = document.createDocumentFragment();
-  let pos = 0;
-  for (const r of findRanges(text, phrases)) {
-    if (r.start > pos) frag.append(text.slice(pos, r.start));
-    const span = document.createElement('span');
-    span.style.color = PALETTE[r.index % PALETTE.length];
-    span.dataset.pairIndex = String(r.index);
-    span.textContent = text.slice(r.start, r.end);
-    frag.append(span);
-    pos = r.end;
+  for (const segment of wordSegments(text, phrases)) {
+    if (!segment.word) { frag.append(segment.text); continue; }
+    const word = document.createElement('button');
+    word.type = 'button';
+    word.dataset.word = segment.word;
+    word.title = `Explain “${segment.word}” in this sentence`;
+    if (segment.index !== undefined) {
+      word.style.color = PALETTE[segment.index % PALETTE.length];
+      word.dataset.pairIndex = String(segment.index);
+    }
+    word.textContent = segment.text;
+    frag.append(word);
   }
-  if (pos < text.length) frag.append(text.slice(pos));
   return frag;
 }

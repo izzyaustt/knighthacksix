@@ -2,6 +2,9 @@ import type { AlignedLine, Pair } from './captions';
 import { logEvent } from './events';
 import { api, base64 } from './api';
 import styles from './practice.css?inline';
+import { createPracticeGate } from './practice-gate';
+const gate = createPracticeGate();
+export const waitForPracticeClose = () => gate.wait();
 let host: HTMLElement | null = null;
 let root: ShadowRoot, panel: HTMLElement, status: HTMLElement;
 let selected: { line: AlignedLine; phrase: string; translation: string; videoId: string } | null = null;
@@ -28,17 +31,19 @@ function mount() {
   root.append(css, panel); player.append(host);
 }
 export function resetPractice() {
+  gate.close();
   selectionVersion++; selected = null; stopRecording(); audio?.pause();
   if (panel) panel.hidden = true;
 }
-export async function openPractice(line: AlignedLine, pair?: Pair, trackLookup = true) {
+export async function openPractice(line: AlignedLine, pair?: Pair, trackLookup = true, word?: { text: string; language: 'en' | 'es' }) {
   mount();
+  gate.open();
   stopRecording(); audio?.pause(); video()?.pause();
   const epoch = ++selectionVersion;
-  selected = { line, phrase: pair?.tgt ?? line.target, translation: pair?.src ?? line.source, videoId: new URLSearchParams(location.search).get('v') ?? '' };
+  selected = { line, phrase: word?.text ?? pair?.tgt ?? line.target, translation: word ? '' : pair?.src ?? line.source, videoId: new URLSearchParams(location.search).get('v') ?? '' };
   const snapshot = selected;
-  panel.replaceChildren(); panel.hidden = false;
-  panel.append(button('Close', () => { panel.hidden = true; selectionVersion++; stopRecording(); audio?.pause(); }));
+  panel.replaceChildren(); panel.hidden = false; status.textContent = '';
+  panel.append(button('Close', resetPractice));
   const title = document.createElement('h3'); title.textContent = snapshot.phrase; panel.append(title);
   const gloss = document.createElement('p'); gloss.textContent = snapshot.translation; panel.append(gloss);
   const notes = document.createElement('p'); notes.textContent = 'Loading explanation…'; panel.append(notes);
@@ -51,11 +56,36 @@ export async function openPractice(line: AlignedLine, pair?: Pair, trackLookup =
   const result = document.createElement('div'); result.id = 'feedback'; result.setAttribute('role', 'status');
   result.textContent = 'Record up to 15 seconds. Your browser will ask for microphone access.';
   panel.append(actions, result, status);
+  if (word) actions.querySelectorAll('button').forEach(b => { b.disabled = true; });
   // Persist the click independently of the explanation provider.
   if (trackLookup) logEvent({ event_type: 'lookup', lang: 'es', word: snapshot.phrase, video_id: snapshot.videoId });
   try {
-    const explanation = await api('/explain', { phrase: snapshot.phrase, source: snapshot.translation, context: line.target, lang: 'es' });
-    if (epoch === selectionVersion) notes.textContent = `${explanation.gloss}\n${explanation.grammar_note}\nExample: ${explanation.example}\nTone: ${explanation.formality}`;
+    const explanation = await api('/explain', { phrase: snapshot.phrase, source: word ? line.source : snapshot.translation, context: line.target, lang: 'es',
+      ...(word ? { word_lookup: true, word_lang: word.language, detail: 'brief' } : {}) });
+    if (epoch === selectionVersion) {
+      if (word) {
+        if (typeof explanation.translation !== 'string' || !explanation.translation.trim()) throw new Error('No word translation was returned.');
+        snapshot.phrase = word.language === 'en' ? explanation.translation : word.text;
+        snapshot.translation = word.language === 'en' ? word.text : explanation.translation;
+        title.textContent = snapshot.phrase;
+        gloss.textContent = snapshot.translation;
+        actions.querySelectorAll('button').forEach(b => { b.disabled = false; });
+      }
+      notes.textContent = word ? explanation.gloss : `${explanation.gloss}\n${explanation.grammar_note}\nExample: ${explanation.example}\nTone: ${explanation.formality}`;
+      if (word) {
+        const more = button('More detail', async () => {
+          more.disabled = true;
+          status.textContent = 'Loading more detail…';
+          try {
+            const detail = await api('/explain', { phrase: snapshot.phrase, source: snapshot.translation, context: line.target, lang: 'es' });
+            if (epoch !== selectionVersion) return;
+            notes.textContent = `${detail.gloss}\n${detail.grammar_note}\nExample: ${detail.example}\nTone: ${detail.formality}`;
+            status.textContent = '';
+          } finally { if (epoch === selectionVersion) more.disabled = false; }
+        });
+        panel.insertBefore(more, actions);
+      }
+    }
   } catch (error) { if (epoch === selectionVersion) notes.textContent = `Explanation unavailable: ${error instanceof Error ? error.message : error}`; }
 }
 async function speak(text: string, speed: number) {

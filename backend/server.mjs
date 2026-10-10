@@ -52,13 +52,14 @@ app.post('/align', async (req, res) => {
 });
 
 app.post('/explain', async (req, res) => {
-  const { phrase, source = '', context = '', lang = 'es' } = req.body ?? {};
+  const { phrase, source = '', context = '', lang = 'es', word_lookup = false, word_lang = 'es', detail = 'full' } = req.body ?? {};
   if (typeof phrase !== 'string' || !phrase.trim() || phrase.length > 2000 ||
-      typeof source !== 'string' || source.length > 2000 || typeof context !== 'string' || context.length > 10000 || lang !== 'es') {
+      typeof source !== 'string' || source.length > 2000 || typeof context !== 'string' || context.length > 10000 || lang !== 'es' ||
+      typeof word_lookup !== 'boolean' || !['en', 'es'].includes(word_lang) || !['brief', 'full'].includes(detail)) {
     return res.status(400).json({ error: 'A Spanish phrase (up to 2000 characters) is required.' });
   }
-  if (process.env.MOCK === '1') return res.json({ gloss: source || 'Mock explanation', grammar_note: 'Mock mode: no Gemini request was made.', example: phrase, formality: 'Demo' });
-  res.json(await explainPhrase({ phrase: phrase.trim(), source, context }));
+  if (process.env.MOCK === '1') return res.json({ gloss: source || 'Mock explanation', grammar_note: 'Mock mode: no Gemini request was made.', example: phrase, formality: 'Demo', ...(word_lookup ? { translation: `[mock] ${phrase}` } : {}) });
+  res.json(await explainPhrase({ phrase: phrase.trim(), source, context, word_lookup, word_lang, detail }));
 });
 
 app.get('/health', (_req, res) => {
@@ -88,7 +89,8 @@ app.use((err, _req, res, _next) => {
 });
 
 const port = Number(process.env.PORT) || 3000;
-const server = app.listen(port, '127.0.0.1', () => console.log(`backend on http://localhost:${port} · AI: ${process.env.MOCK === '1' ? 'mock' : aiConfig.provider} (${aiConfig.model})`));
+const host = process.env.HOST || (process.env.NODE_ENV === 'production' ? '0.0.0.0' : '127.0.0.1');
+const server = app.listen(port, host, () => console.log(`backend on ${host}:${port} · AI: ${process.env.MOCK === '1' ? 'mock' : aiConfig.provider} (${aiConfig.model})`));
 for (const signal of ['SIGINT', 'SIGTERM']) {
   process.once(signal, () => server.close(() => pool.end().then(() => process.exit(0))));
 }
