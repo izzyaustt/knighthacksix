@@ -4,12 +4,13 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "node --env-file-if-exists=.env --watch src/server.ts",
-    "start": "node --env-file-if-exists=.env src/server.ts",
+    "dev": "node --watch server.mjs",
+    "start": "node server.mjs",
     "typecheck": "tsc"
   },
   "dependencies": {
     "@google/genai": "^2.28.0",
+    "cors": "^2.8.6",
     "dotenv": "^18.0.7",
     "express": "^5.3.0",
     "multer": "^2.4.0"
