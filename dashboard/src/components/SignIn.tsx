@@ -24,11 +24,17 @@ export function SignIn() {
   useEffect(() => {
     if (!CLIENT_ID) return;
     let cancelled = false;
+    let requested = false;
     loadGsi().then(() => {
       if (cancelled || !button.current || !window.google) return;
       window.google.accounts.id.initialize({
         client_id: CLIENT_ID,
+        auto_select: false,
+        button_auto_select: false,
         callback: ({ credential }) => {
+          // Ignore unsolicited credentials and callbacks from an old login view.
+          if (cancelled || !requested) return;
+          requested = false;
           setBusy(true);
           setError(null);
           signIn(credential).catch((e: Error) => {
@@ -37,7 +43,10 @@ export function SignIn() {
           });
         },
       });
-      window.google.accounts.id.renderButton(button.current, { theme: 'outline', size: 'large', shape: 'pill', text: 'signin_with', width: 280 });
+      window.google.accounts.id.renderButton(button.current, {
+        theme: 'outline', size: 'large', shape: 'pill', text: 'signin_with', width: 280,
+        click_listener: () => { requested = true; },
+      });
     }).catch((e: Error) => setError(e.message));
     return () => { cancelled = true; };
   }, []);
