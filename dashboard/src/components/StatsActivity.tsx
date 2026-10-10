@@ -54,28 +54,19 @@ export function StatsActivity({ className, activity, scores, vocab }: Props) {
     .filter((c, i, labels) => i === labels.length - 1 || labels[i + 1].col - c.col >= 3);
 
   const totals = useMemo(() => {
-    const days = activity.data ?? [];
     let streak = 0;
     // A streak counts back from today; an inactive today doesn't break yesterday's streak yet.
     for (let day = isActive(byDay.get(today())) ? today() : addDays(today(), -1); isActive(byDay.get(day)); day = addDays(day, -1)) streak++;
     const scored = (scores.data ?? []).reduce((acc, p) => ({ sum: acc.sum + p.avg_score * p.attempts, n: acc.n + p.attempts }), { sum: 0, n: 0 });
-    return {
-      attempts: days.reduce((n, d) => n + d.shadow_attempts, 0),
-      lookups: days.reduce((n, d) => n + d.lookups, 0),
-      minutes: days.reduce((n, d) => n + d.watched_minutes, 0),
-      avgScore: scored.n ? scored.sum / scored.n : null,
-      streak,
-    };
-  }, [activity.data, scores.data, byDay]);
+    return { avgScore: scored.n ? scored.sum / scored.n : null, streak };
+  }, [scores.data, byDay]);
 
   const words = vocab.data?.length;
-  const stats: [string, string][] = [
+  // [label, value, unit]; per-day attempts, lookups, and minutes live in the heatmap tooltip and table.
+  const stats: [string, string, string?][] = [
     ['Words saved', words === undefined ? '–' : words >= 200 ? '200+' : String(words)],
     ['Avg score', totals.avgScore === null ? '–' : `${Math.round(totals.avgScore * 100)}%`],
-    ['Day streak', `${totals.streak} ${totals.streak === 1 ? 'day' : 'days'}`],
-    ['Practice attempts', String(totals.attempts)],
-    ['Phrase lookups', String(totals.lookups)],
-    ['Minutes watched', String(totals.minutes)],
+    ['Day streak', String(totals.streak), totals.streak === 1 ? 'day' : 'days'],
   ];
 
   const showTooltip = (cell: Cell) => (event: MouseEvent<SVGRectElement> | FocusEvent<SVGRectElement>) => {
@@ -98,8 +89,11 @@ export function StatsActivity({ className, activity, scores, vocab }: Props) {
       <div ref={cardRef} style={{ position: 'relative' }}>
         <div className="stats-layout">
           <ul className="stat-list" aria-label={`Totals for the last ${WEEKS} weeks`}>
-            {stats.map(([label, value]) => (
-              <li key={label}><span className="stat-label">{label}</span><span className="stat-value">{value}</span></li>
+            {stats.map(([label, value, unit]) => (
+              <li key={label}>
+                <span className="stat-label">{label}</span>
+                <span className="stat-value">{value}{unit && <span className="stat-unit"> {unit}</span>}</span>
+              </li>
             ))}
           </ul>
 

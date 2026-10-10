@@ -103,10 +103,14 @@ button { font: inherit; }
 
 .stats-layout { display: grid; grid-template-columns: 170px 1fr; gap: 20px; align-items: start; }
 @media (max-width: 700px) { .stats-layout { grid-template-columns: 1fr; } }
-.stat-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
-.stat-list li { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; }
-.stat-label { color: var(--ink-2); }
-.stat-value { font-weight: 700; }
+.stat-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; }
+.stat-list li { display: flex; flex-direction: column; gap: 2px; }
+.stat-label { font-size: 13px; color: var(--ink-2); }
+.stat-value { font-size: 30px; font-weight: 700; line-height: 1.1; }
+.stat-unit { font-size: 16px; font-weight: 600; color: var(--ink-2); }
+@media (max-width: 700px) {
+  .stat-list { grid-template-columns: repeat(3, 1fr); }
+}
 
 .heatmap { overflow-x: auto; }
 .heatmap svg { display: block; }
