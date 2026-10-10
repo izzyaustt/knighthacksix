@@ -13,7 +13,7 @@ If you already have the project on your computer, start with step 2 below.
 
 ## 2. Install Node.js
 
-Install Node.js with npm if you do not already have it. Use Node.js **22.12.0 or newer** to meet the build tool's requirement.
+Install Node.js with npm if you do not already have it. Use Node.js **22.18.0 or newer** to meet the build tool's requirement.
 
 Open a terminal and check that both commands work:
 
@@ -64,13 +64,14 @@ The current manifest uses the placeholder name `[APP NAME]`, so that may be the 
 
 ## 6. Check that it runs on YouTube
 
-1. Open an English YouTube video with captions available.
-2. Refresh the video page if it was already open before installation.
-3. Open Chrome DevTools using **Inspect**, then select **Console**.
-4. Look for messages beginning with `[LL main]` and `[LL content]`.
-5. Look for caption-track and timestamped-line logs.
+1. Start the backend on `http://localhost:3000` (Node 22.18+).
+2. Open an English YouTube video with captions available and refresh the page.
+3. Turn CC on. Expect the overlay toolbar and synchronized English/Spanish captions.
+4. Click a colored phrase to open explanations, save vocabulary, listen, or record a short practice attempt.
 
-The current source reads and logs captions. The bilingual overlay, sidebar, pronunciation, recording, and dashboard connection are planned build steps; installing this version does not mean those features are already implemented. See the [Chrome Extension Build Steps](../docs/Chrome%20Extension%20Steps.md) checklist.
+For incremental checks, mock mode, expected results, and troubleshooting, follow [Testing the Extension](../docs/Testing%20the%20Extension.md). Mock mode only replaces translation/explanations; audio buttons still call the speech provider and saves still write database records.
+
+The extension currently uses Spanish and `demo-user`. Dashboard UI and watched-time tracking remain separate work.
 
 ## 7. Reload after code changes
 
@@ -99,7 +100,7 @@ Keep the extracted folder in a stable location while it is installed. If you mov
 | --- | --- |
 | `npm` is not recognized / command not found | Install Node.js with npm, then reopen the terminal. |
 | npm cannot find `package.json` | Navigate into the source `extension` folder before running the commands. |
-| Node.js version error | Check `node --version` and use Node.js 22.12.0 or newer. |
+| Node.js version error | Check `node --version` and use Node.js 22.18.0 or newer. |
 | No `dist` folder | Run `npm run build` and resolve any reported build errors. |
 | Chrome reports a missing manifest | Select the extracted build folder that directly contains `manifest.json`. |
 | Chrome cannot load a TypeScript script | You likely selected the source folder; select `extension/dist` instead. |

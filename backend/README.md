@@ -82,7 +82,7 @@ The database test uses the real configured database and local HTTP routes, with 
 
 The extension service worker calls this local server; keys remain in the backend environment. `/align` accepts 1–30 timestamped English captions, `videoId`, `lang=es`, `level` (easy/medium/hard), and a nonnegative `startIndex`. Its response contains `source`, `target`, and pairs with `srcStart`/`tgtStart` offsets. Cache keys include caption content and only complete successful batches are cached.
 
-`POST /explain` accepts `phrase`, optional `source`/`context`, and `lang=es`. It returns `gloss`, `grammar_note`, `example`, and `formality`, with a bounded in-memory cache.
+`POST /explain` accepts `phrase`, optional `source`/`context`, and `lang=es`. It returns `gloss`, `grammar_note`, `why_here` (why this word or form fits the supplied `context` line), `example`, and `formality`, with a bounded in-memory cache.
 
 `MOCK=1 npm start` replaces **only** translation and explanations; TTS/STT are real provider calls and vocabulary/events use the real database. `npm run test:extension` verifies the mock HTTP contract without paid calls or database writes. See [the incremental testing guide](../docs/Testing%20the%20Extension.md).
 

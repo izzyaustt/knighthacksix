@@ -11,7 +11,7 @@ test('word translations request the correct direction and have separate cache en
     const request = JSON.parse(options.body); requests.push(request);
     return new Response(JSON.stringify({ message: { content: JSON.stringify({
       translation: request.messages[0].content.includes('into Spanish') ? 'minutos' : 'minutes', gloss: 'A unit of time.',
-      grammar_note: 'Plural noun.', example: 'Cinco minutos — five minutes.', formality: 'Neutral', pronunciation: 'mee-NOO-tohs',
+      grammar_note: 'Plural noun.', why_here: 'Counts a plural quantity.', example: 'Cinco minutos — five minutes.', formality: 'Neutral', pronunciation: 'mee-NOO-tohs',
     }) } }), { status: 200 });
   };
   try {
@@ -47,7 +47,7 @@ test('sentence responses are retried and rejected instead of being cached as wor
   globalThis.fetch = async () => {
     calls++;
     return new Response(JSON.stringify({ message: { content: JSON.stringify({ translation: 'This is an entire sentence.',
-      gloss: 'word', grammar_note: 'note', example: 'example', formality: 'neutral', pronunciation: 'WORD' }) } }), { status: 200 });
+      gloss: 'word', grammar_note: 'note', why_here: 'why', example: 'example', formality: 'neutral', pronunciation: 'WORD' }) } }), { status: 200 });
   };
   try {
     await assert.rejects(explainPhrase({ phrase: 'uncached-word-test', source: 'context', context: 'context', word_lookup: true, word_lang: 'en' }), /sentence instead/);

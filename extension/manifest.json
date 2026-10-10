@@ -14,11 +14,34 @@
       "description": "Toggle the learning panel"
     }
   },
-  "background": { "service_worker": "src/background.ts", "type": "module" },
   "permissions": ["storage", "identity"],
-  "host_permissions": ["https://www.youtube.com/*", "http://localhost/*", "http://127.0.0.1/*"],
+  "host_permissions": [
+    "https://www.youtube.com/*", "http://localhost/*", "http://127.0.0.1/*",
+    "http://localhost:3000/*"
+  ],
   "content_scripts": [
-    { "matches": ["https://www.youtube.com/*"], "js": ["src/main-world.ts"], "world": "MAIN", "run_at": "document_start" },
-    { "matches": ["https://www.youtube.com/*"], "js": ["src/content.ts"], "run_at": "document_idle" }
-  ]
+    {
+      "matches": [
+        "https://www.youtube.com/*"
+      ],
+      "js": [
+        "src/main-world.ts"
+      ],
+      "world": "MAIN",
+      "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "https://www.youtube.com/*"
+      ],
+      "js": [
+        "src/content.ts"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "background": {
+    "service_worker": "src/background.ts",
+    "type": "module"
+  }
 }

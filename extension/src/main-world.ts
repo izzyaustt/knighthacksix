@@ -54,7 +54,8 @@ let loopVideoId: string | null = null;
 
 function start() {
   const videoId = currentVideoId();
-  if (!videoId || videoId === loopVideoId) return;
+  if (!videoId) { loopVideoId = null; lastTracks = null; lastCaptions = null; return; }
+  if (videoId === loopVideoId) return;
   loopVideoId = videoId;
   send(videoId);
 }
@@ -73,7 +74,7 @@ function send(videoId: string, tries = 0) {
     tracks: tracks.map((t: any) => ({ url: t.baseUrl, lang: t.languageCode, auto: t.kind === 'asr' }))
   };
   window.postMessage(lastTracks, '*');
-  const t = tracks.find((t: any) => t.languageCode?.startsWith('en') && t.kind !== 'asr') ?? tracks[0];
+  const t = tracks.find((t: any) => t.languageCode?.startsWith('en') && t.kind !== 'asr') ?? tracks.find((t: any) => t.languageCode?.startsWith('en'));
   if (t) turnOnCaptions(t.languageCode);
 }
 
