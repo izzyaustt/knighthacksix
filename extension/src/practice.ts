@@ -132,7 +132,7 @@ export async function openPractice(line: AlignedLine, pair?: Pair, trackLookup =
     if (saved) return;
     saveStatus.textContent = 'Saving…';
     try {
-      await api('/vocab', { user_id: 'demo-user', lang: 'es', word: snapshot.phrase, translation: snapshot.translation, video_id: snapshot.videoId, video_ts: line.start });
+      await api('/vocab', { lang: 'es', word: snapshot.phrase, translation: snapshot.translation, video_id: snapshot.videoId, video_ts: line.start });
     } catch (error) { if (epoch === selectionVersion) saveStatus.textContent = `Could not save: ${error instanceof Error ? error.message : error}`; return; }
     void updateDay(d => { d.saves++; });
     if (epoch !== selectionVersion) return;
@@ -301,7 +301,7 @@ async function record() {
         if (!blob.size) throw new Error('No audio recorded. Try again.');
         recordingUrl = URL.createObjectURL(blob);
         const result: Attempt = await api('/stt', { audio: await base64(blob), mime: blob.type, attempt_id: crypto.randomUUID(),
-          user_id: 'demo-user', target_text: snapshot.phrase, lang: 'es', video_id: snapshot.videoId, video_ts: snapshot.line.start });
+          target_text: snapshot.phrase, lang: 'es', video_id: snapshot.videoId, video_ts: snapshot.line.start });
         if (epoch === selectionVersion) { showAttempt(result, epoch); hint.textContent = idleHint; }
       } catch (error) { if (epoch === selectionVersion) hint.textContent = `Recording failed: ${error instanceof Error ? error.message : error}`; }
       finally { if (epoch === selectionVersion) { recordingPending = false; recordingControls('ready'); } }

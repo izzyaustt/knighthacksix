@@ -12,7 +12,7 @@ import { cachedTts } from './src/ttsCache.ts';
 import { scoreAttempt } from './src/scoring.ts';
 import { createPool } from './database.mjs';
 import { createDataRouter, createAttemptHandler } from './data-routes.mjs';
-import { authRoutes } from './auth.mjs';
+import { authRoutes, requireUser } from './auth.mjs';
 
 
 const app = express();
@@ -82,10 +82,10 @@ app.post('/tts', async (req, res) => {
   res.set({ 'Content-Type': 'audio/mpeg', 'X-Cache': cached ? 'HIT' : 'MISS' }).send(audio);
 });
 
-app.post('/stt', upload.single('audio'), createAttemptHandler(pool, { stt, scoreAttempt }));
+app.post('/stt', requireUser, upload.single('audio'), createAttemptHandler(pool, { stt, scoreAttempt }));
 
 // --- Tiger Data ---
-app.use(createDataRouter(pool));
+app.use(createDataRouter(pool, requireUser));
 
 // Provider failures (ElevenLabs, Gemini) come back as JSON instead of an HTML error page.
 app.use((err, _req, res, _next) => {
