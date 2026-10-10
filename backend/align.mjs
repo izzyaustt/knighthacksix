@@ -32,8 +32,8 @@ export function validate(text, target, pairs) {
   const usedTgt = [];
   let cursor = 0;
   const out = [];
-  for (const p of pairs ?? []) {
-    if (!p.src?.trim() || !p.tgt?.trim()) continue;
+  for (const p of Array.isArray(pairs) ? pairs : []) {
+    if (typeof p?.src !== 'string' || typeof p?.tgt !== 'string' || !p.src.trim() || !p.tgt.trim()) continue;
     const s = text.indexOf(p.src, cursor);
     if (s < 0) continue;
     let t = target.indexOf(p.tgt);
@@ -64,7 +64,9 @@ export async function alignBatch(lines, { level = 'medium' } = {}) {
           responseSchema: schema,
         },
       });
-      parsed = JSON.parse(res.text);
+      const value = JSON.parse(res.text);
+      if (!Array.isArray(value)) throw new Error('Expected an array of translated lines');
+      parsed = value;
     } catch (e) {
       console.error(`[align] attempt ${attempt + 1} failed:`, e.message);
     }
@@ -72,7 +74,7 @@ export async function alignBatch(lines, { level = 'medium' } = {}) {
   const byId = new Map((parsed ?? []).map((o) => [o.id, o]));
   return lines.map((l, id) => {
     const o = byId.get(id);
-    const target = o?.target ?? '';
+    const target = typeof o?.target === 'string' ? o.target : '';
     return { start: l.start, end: l.end, source: l.text, target, pairs: o ? validate(l.text, target, o.pairs) : [] };
   });
 }

@@ -76,3 +76,11 @@ npm run typecheck
 ```
 
 The database test uses the real configured database and local HTTP routes, with mocked speech transcription. All fixture data lives in an outer transaction and is rolled back; it does not call paid AI/audio providers. It tests event/attempt retries, vocabulary, user filtering, live recent feedback, and statistics. Route transactions use savepoints during the test; this does not test concurrency across separate connections. Without `RUN_DB_TESTS=1`, the integration test is skipped.
+
+## Extension integration
+
+The extension service worker calls this local server; keys remain in the backend environment. `/align` accepts 1–30 timestamped English captions, `videoId`, `lang=es`, `level` (easy/medium/hard), and a nonnegative `startIndex`. Its response contains `source`, `target`, and pairs with `srcStart`/`tgtStart` offsets. Cache keys include caption content and only complete successful batches are cached.
+
+`POST /explain` accepts `phrase`, optional `source`/`context`, and `lang=es`. It returns `gloss`, `grammar_note`, `example`, and `formality`, with a bounded in-memory cache.
+
+`MOCK=1 npm start` replaces **only** translation and explanations; TTS/STT are real provider calls and vocabulary/events use the real database. `npm run test:extension` verifies the mock HTTP contract without paid calls or database writes. See [the incremental testing guide](../docs/Testing%20the%20Extension.md).

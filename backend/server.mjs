@@ -1,5 +1,7 @@
 import './env.mjs';
 import fs from 'fs';
+import { createHash } from 'node:crypto';
+import { explainPhrase } from './explain.mjs';
 import express from 'express';
 import cors from 'cors';
 import multer from 'multer';
@@ -23,7 +25,12 @@ const save = () => fs.writeFileSync(CACHE_FILE, JSON.stringify(Object.fromEntrie
 
 app.post('/align', async (req, res) => {
   const { videoId, lang = 'es', level = 'medium', startIndex = 0, lines } = req.body ?? {};
-  if (!videoId || !Array.isArray(lines) || !lines.length) return res.status(400).json({ error: 'videoId and lines required' });
+  if (typeof videoId !== 'string' || !videoId.trim() || !Array.isArray(lines) || !lines.length || lines.length > 30 ||
+      lines.some(l => typeof l?.text !== 'string' || !l.text.trim() || l.text.length > 2000 ||
+        !Number.isFinite(l.start) || !Number.isFinite(l.end) || l.start < 0 || l.end <= l.start) ||
+      !Number.isInteger(startIndex) || startIndex < 0 || lang !== 'es' || !['easy', 'medium', 'hard'].includes(level)) {
+    return res.status(400).json({ error: 'Provide 1–30 timed caption lines, a videoId, lang=es, and a valid level/startIndex.' });
+  }
 
   if (process.env.MOCK === '1') {
     return res.json({ startIndex, lines: lines.map((l) => ({
@@ -32,12 +39,24 @@ app.post('/align', async (req, res) => {
     })) });
   }
 
-  const key = `${videoId}|${lang}|${level}|${startIndex}`;
+  const digest = createHash('sha256').update(JSON.stringify(lines)).digest('hex');
+  const key = `${videoId}|${lang}|${level}|${startIndex}|${digest}`;
   if (cache.has(key)) return res.json({ startIndex, lines: cache.get(key), cached: true });
 
   const aligned = await alignBatch(lines, { level });
-  if (aligned.some((l) => l.target)) { cache.set(key, aligned); save(); } // never cache a failed batch
+  if (!aligned.every(l => typeof l.target === 'string' && l.target.trim())) return res.status(502).json({ error: 'Translation provider returned an incomplete batch. Retry the request.' });
+  cache.set(key, aligned); save(); // cache only complete batches
   res.json({ startIndex, lines: aligned });
+});
+
+app.post('/explain', async (req, res) => {
+  const { phrase, source = '', context = '', lang = 'es' } = req.body ?? {};
+  if (typeof phrase !== 'string' || !phrase.trim() || phrase.length > 2000 ||
+      typeof source !== 'string' || source.length > 2000 || typeof context !== 'string' || context.length > 10000 || lang !== 'es') {
+    return res.status(400).json({ error: 'A Spanish phrase (up to 2000 characters) is required.' });
+  }
+  if (process.env.MOCK === '1') return res.json({ gloss: source || 'Mock explanation', grammar_note: 'Mock mode: no Gemini request was made.', example: phrase, formality: 'Demo' });
+  res.json(await explainPhrase({ phrase: phrase.trim(), source, context }));
 });
 
 app.get('/health', (_req, res) => {
