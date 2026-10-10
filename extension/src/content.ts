@@ -1,7 +1,10 @@
 import { alignLines } from './align';
+import { logEvent } from './events';
 import { mountOverlay, renderLine } from './overlay';
+import { createPanel } from './panel';
 import { startSync } from './sync';
 import type { AlignedLine, Line } from './types';
+import { startWatchTracker, type WatchTracker } from './watch';
 
 console.log('[LL content] loaded');
 
@@ -13,6 +16,25 @@ let sessionVideoId: string | null = null;
 let generation = 0; // bumped on every start/reset so stale align batches are dropped
 let stopSync: (() => void) | null = null;
 let overlay: ReturnType<typeof mountOverlay> | null = null;
+let watch: WatchTracker | null = null;
+let captionsOn = true;
+
+const isWatchPage = () => location.pathname === '/watch';
+const findVideo = () => document.querySelector<HTMLVideoElement>('#movie_player video.html5-main-video');
+
+const panel = createPanel({
+  getVideo: findVideo,
+  getVideoId: () => sessionVideoId ?? (isWatchPage() ? new URLSearchParams(location.search).get('v') : null),
+  pendingWatch: () => watch?.pending() ?? new Map(),
+  captionsOn: () => captionsOn,
+  setCaptionsOn,
+});
+panel.setStatus(isWatchPage() ? { kind: 'waiting' } : { kind: 'idle' });
+
+// The toolbar icon (or Alt+L) sends this via the service worker.
+chrome.runtime.onMessage.addListener((msg) => {
+  if (msg?.type === 'll:toggle-panel') panel.toggle();
+});
 
 window.addEventListener('message', (e) => {
   if (e.source !== window || e.data?.source !== 'LL') return;
@@ -40,42 +62,78 @@ document.addEventListener('yt-navigate-finish', () => {
 
 function start(videoId: string | null, lines: Line[]) {
   reset();
-  const video = document.querySelector<HTMLVideoElement>('#movie_player video.html5-main-video');
+  const video = findVideo();
   if (!video || !lines.length) { console.warn('[LL content] no video element or no lines'); return; }
   sessionVideoId = videoId;
-  hideNativeCaptions();
   overlay = mountOverlay();
+  applyCaptionsVisibility();
   const { root } = overlay;
 
   const aligned: AlignedLine[] = lines
     .map((l) => ({ start: l.start, end: l.end, src: l.text, tgt: '', pairs: [] }))
     .sort((a, b) => a.start - b.start);
-  stopSync = startSync(video, () => aligned, (line) => renderLine(root, line));
+  stopSync = startSync(video, () => aligned, (line) => {
+    renderLine(root, line);
+    panel.setLine(line);
+  });
+
+  // caption_view: once when captions load, then once per minute actually watched.
+  logEvent({ event_type: 'caption_view', video_id: videoId, lang: 'es', meta: { reason: 'loaded', lines: aligned.length } });
+  watch = startWatchTracker(video, () =>
+    logEvent({ event_type: 'caption_view', video_id: videoId, lang: 'es', meta: { reason: 'minute' } }));
+
   void alignProgressively(aligned, generation);
 }
 
 // First batch right away, then the rest in the background, merging each batch in place.
 async function alignProgressively(aligned: AlignedLine[], gen: number) {
-  for (let offset = 0; offset < aligned.length; offset += BATCH) {
+  const total = Math.ceil(aligned.length / BATCH);
+  let failed = 0;
+  panel.setStatus({ kind: 'aligning', done: 0, total });
+  for (let offset = 0, done = 0; offset < aligned.length; offset += BATCH, done++) {
     try {
       const batch = aligned.slice(offset, offset + BATCH);
       const result = await alignLines(batch.map((l) => ({ start: l.start, end: l.end, text: l.src })));
       if (gen !== generation) return;
       result.slice(0, batch.length).forEach((line, i) => { aligned[offset + i] = line; });
     } catch (err) {
+      if (gen !== generation) return;
+      failed++;
       console.warn('[LL content] align failed for batch at', offset, err);
     }
+    panel.setStatus({ kind: 'aligning', done: done + 1, total });
   }
+  panel.setStatus({ kind: 'ready', total, failed });
 }
 
 function reset() {
   generation++;
   stopSync?.();
   stopSync = null;
+  watch?.stop();
+  watch = null;
   if (overlay) renderLine(overlay.root, null);
   document.getElementById(HIDE_STYLE_ID)?.remove();
   sessionVideoId = null;
   lastKey = '';
+  panel.reset();
+  panel.setStatus(isWatchPage() ? { kind: 'waiting' } : { kind: 'idle' });
+}
+
+// Panel toggle: show our overlay and hide YouTube's, or the reverse.
+function setCaptionsOn(on: boolean) {
+  captionsOn = on;
+  if (sessionVideoId) applyCaptionsVisibility();
+}
+
+function applyCaptionsVisibility() {
+  if (captionsOn) {
+    hideNativeCaptions();
+    overlay?.root.style.removeProperty('display');
+  } else {
+    document.getElementById(HIDE_STYLE_ID)?.remove();
+    overlay?.root.style.setProperty('display', 'none', 'important');
+  }
 }
 
 // CC stays on in the player (that is what triggers the capture); we only hide it visually.
