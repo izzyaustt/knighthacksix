@@ -11,8 +11,12 @@ export interface ScoreResult {
 export function normalize(text: string): string[] {
   return text
     .toLowerCase()
+    .normalize('NFC')
+    .replace(/ñ/g, '\uE000') // ñ is a distinct Spanish letter, not an optional accent.
     .normalize('NFD')
     .replace(/\p{M}/gu, '') // strip accents so "esta" still matches "está"
+    .replace(/\uE000/g, 'ñ')
+    .replace(/[’‘]/g, "'")
     .replace(/[^\p{L}\p{N}\s']/gu, ' ')
     .split(/\s+/)
     .filter(Boolean);
@@ -20,7 +24,7 @@ export function normalize(text: string): string[] {
 
 // Word-level Levenshtein alignment, then walk back to label each target word.
 export function scoreAttempt(target: string, transcript: string): ScoreResult {
-  const display = target.split(/\s+/).filter((w) => normalize(w).length);
+  const display = target.match(/[\p{L}\p{N}\p{M}]+(?:['’‘][\p{L}\p{N}\p{M}]+)*/gu) ?? [];
   const t = display.map((w) => normalize(w).join(''));
   const h = normalize(transcript);
 
