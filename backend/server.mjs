@@ -57,7 +57,7 @@ app.post('/explain', async (req, res) => {
       typeof source !== 'string' || source.length > 2000 || typeof context !== 'string' || context.length > 10000 || lang !== 'es') {
     return res.status(400).json({ error: 'A Spanish phrase (up to 2000 characters) is required.' });
   }
-  if (process.env.MOCK === '1') return res.json({ gloss: source || 'Mock explanation', grammar_note: 'Mock mode: no Gemini request was made.', example: phrase, formality: 'Demo' });
+  if (process.env.MOCK === '1') return res.json({ gloss: source || 'Mock explanation', grammar_note: 'Mock mode: no Gemini request was made.', why_here: 'Mock mode: no context explanation.', example: phrase, formality: 'Demo' });
   res.json(await explainPhrase({ phrase: phrase.trim(), source, context }));
 });
 

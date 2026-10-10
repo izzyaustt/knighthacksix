@@ -13,8 +13,3 @@ button:focus-visible { outline:2px solid white; outline-offset:2px; }
 .phrase:hover { text-decoration:underline; background:#334155; }
 .color-0 { color:#7dd3fc; } .color-1 { color:#fda4af; } .color-2 { color:#fde68a; }
 .practice { font-size:12px; padding:3px 8px; }
-.panel { pointer-events:auto; position:absolute; top:55px; right:12px; width:min(360px,90%); max-height:calc(100% - 110px); overflow:auto; background:#0f172af5; border:1px solid #475569; border-radius:10px; padding:14px; box-shadow:0 5px 25px #0008; }
-.panel h3 { font-size:20px; margin:12px 0; }
-.panel p,#feedback { white-space:pre-wrap; margin:10px 0; }
-.actions { display:flex; flex-wrap:wrap; gap:7px; }
-#feedback { color:#bae6fd; font-size:13px; }

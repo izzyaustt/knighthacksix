@@ -1,11 +1,10 @@
 // The glanceable panel opened from the extension icon. Injected into the YouTube page inside a
-// shadow root (per spec: an injected panel, not Chrome's side panel API), so it can read the
-// current caption line and the video directly.
-import { PALETTE, renderColored } from './colorize';
-import { getVocab, logEvent, sameVocab, toggleVocab, VOCAB_KEY, type VocabItem } from './events';
+// shadow root (per spec: an injected panel, not Chrome's side panel API), so it can drive the
+// video directly. Captions stay on the video; the panel shows a lookup only once a phrase is picked.
+import LOGO_FULL from './assets/logo-full.png?inline';
+import LOGO_MARK from './assets/logo-mark.png?inline';
 import { PANEL_CSS } from './panel-css';
 import { dayKey, emptyDay, isStatsKey, readRecent, type DayStats } from './stats';
-import type { AlignedLine, Pair } from './types';
 
 export type PanelStatus =
   | { kind: 'idle' }                                   // not on a watch page
@@ -19,13 +18,18 @@ export type PanelDeps = {
   pendingWatch(): ReadonlyMap<number, number>;
   captionsOn(): boolean;
   setCaptionsOn(on: boolean): void;
+  /** The panel was closed; stop anything running in the lookup view. */
+  onClose?(): void;
+  /** The lookup view was left with its back button. */
+  onLookupBack?(): void;
 };
 
 export type PanelController = {
   toggle(force?: boolean): void;
-  setLine(line: AlignedLine | null): void;
   setStatus(status: PanelStatus): void;
   reset(): void;
+  /** Word lookup view. The content script owns what goes inside `el`. */
+  practice: { el: HTMLElement; show(title?: string): void; hide(): void };
 };
 
 type Alert = { key: string; tone: 'info' | 'warn' | 'suggest'; text: string; actions?: [string, () => void][] };
@@ -33,14 +37,36 @@ type Alert = { key: string; tone: 'info' | 'warn' | 'suggest'; text: string; act
 // Static markup only. Every dynamic string goes in through textContent.
 const HTML = `
 <aside class="panel" id="panel" role="complementary" aria-label="Learning panel" tabindex="-1">
+ <div class="view signin" id="view-signin" hidden>
+  <div class="brand">
+    <img class="wordmark" src="${LOGO_FULL}" alt="langtube" width="300" height="126">
+    <p class="tagline">watch it, speak it, improve it</p>
+    <p class="pitch">Learn Spanish from the YouTube videos you already watch. Tap any subtitle word to look it up and practice saying it.</p>
+  </div>
+  <div class="signin-actions">
+    <button type="button" class="google" id="signin">
+      <svg width="20" height="20" viewBox="0 0 48 48" aria-hidden="true">
+        <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+        <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+        <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+        <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+      </svg>
+      Sign in with Google
+    </button>
+    <p class="legal">By continuing you agree to our <a href="#" data-todo="terms">Terms</a> and <a href="#" data-todo="privacy">Privacy Policy</a>.</p>
+  </div>
+ </div>
+
+ <div class="view home" id="view-home">
   <header>
-    <div class="logo" aria-hidden="true">LL</div>
+    <img class="logo" src="${LOGO_MARK}" alt="" width="34" height="40">
     <div class="titles">
-      <div class="name" id="name"></div>
+      <div class="name">langtube</div>
       <div class="video-title" id="video-title"></div>
     </div>
     <span class="pill" id="pill" role="status"></span>
-    <button type="button" class="icon" id="close" aria-label="Close panel">×</button>
+    <button type="button" class="icon sign-out" aria-label="Sign out" title="Sign out"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 4h3a2 2 0 012 2v12a2 2 0 01-2 2h-3"></path><path d="M10 16l-4-4 4-4M6 12h10"></path></svg></button>
+    <button type="button" class="icon close-panel" aria-label="Close panel"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
   </header>
 
   <section id="alerts" aria-live="polite"></section>
@@ -50,15 +76,11 @@ const HTML = `
     <div class="card"><div class="label">Lookups today</div><div class="value" id="lookups">0</div></div>
   </section>
 
-  <section class="line" id="line-card" hidden>
-    <div class="line-head"><span class="label" id="line-label">Now</span><span class="time" id="line-time"></span></div>
-    <div class="tgt" id="line-tgt" lang="es"></div>
-    <div class="src" id="line-src" lang="en"></div>
-    <div class="chips" id="chips" aria-label="Phrase pairs"></div>
-    <div class="note" id="note" hidden></div>
-    <div class="line-actions">
-      <button type="button" class="btn ghost" id="replay">↺ Replay</button>
-      <button type="button" class="btn ghost" id="save" aria-pressed="false">☆ Save line</button>
+  <section class="tip" id="tip">
+    <div class="tip-icon" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11V5a2 2 0 014 0v6"></path><path d="M13 10a2 2 0 014 0v1a2 2 0 014 0v4a6 6 0 01-6 6h-2a6 6 0 01-5-2.7L5.5 15a2 2 0 013.4-2L9 13"></path></svg></div>
+    <div class="tip-body">
+      <h2>Tap a colored phrase</h2>
+      <p>Any colored phrase in the captions on the video opens its meaning, the clip it came from, and a chance to say it yourself. The video pauses while you look.</p>
     </div>
   </section>
 
@@ -81,8 +103,25 @@ const HTML = `
     </div>
   </section>
 
-  <footer><button type="button" class="btn primary" id="dash">Open dashboard →</button></footer>
+  <footer><button type="button" class="dash-link">Open dashboard <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 01-1 1H5a1 1 0 01-1-1V7a1 1 0 011-1h5"></path></svg></button></footer>
+ </div>
+
+ <div class="view lookup" id="view-lookup" hidden>
+  <div class="topbar">
+    <button type="button" class="icon" id="lookup-back" aria-label="Back to subtitles">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"></path></svg>
+    </button>
+    <span class="topbar-title"><img class="logo small" src="${LOGO_MARK}" alt="" width="26" height="30"><span class="eyebrow" id="lookup-title">Word lookup</span></span>
+    <div class="top-actions"><button type="button" class="icon sign-out" aria-label="Sign out" title="Sign out"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 4h3a2 2 0 012 2v12a2 2 0 01-2 2h-3"></path><path d="M10 16l-4-4 4-4M6 12h10"></path></svg></button><button type="button" class="icon close-panel" aria-label="Close panel"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button></div>
+  </div>
+  <div class="lookup-body" id="practice"></div>
+  <footer><button type="button" class="dash-link">Open dashboard <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 01-1 1H5a1 1 0 01-1-1V7a1 1 0 011-1h5"></path></svg></button></footer>
+ </div>
 </aside>`;
+
+const SIGNED_IN_KEY = 'll:signedIn';
+const FONTS_ID = 'll-fonts';
+const FONTS_URL = 'https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&family=Caveat:wght@600&display=swap';
 
 export function createPanel(deps: PanelDeps): PanelController {
   const host = document.createElement('div');
@@ -94,37 +133,43 @@ export function createPanel(deps: PanelDeps): PanelController {
 
   let open = false;
   let status: PanelStatus = { kind: 'idle' };
-  let line: AlignedLine | null = null;
-  let lineIsCurrent = false;
-  let selected = -1;
   let range: '30m' | '24h' = '30m';
   let stats: { today: DayStats; yesterday: DayStats } = { today: emptyDay(), yesterday: emptyDay() };
-  let vocab: VocabItem[] = [];
   let timer = 0;
   let alertKey: string | null = null;
-  const replays = new Map<string, number>();
-  const dismissed = new Set<string>();
-  const lookedUp = new Set<string>();
 
-  $('name').textContent = chrome.runtime.getManifest().name;
+  // Sign-in is a front-end gate only for now: there is no auth behind the button yet.
+  let signedIn = false;
+  let lookupOpen = false;
+  try {
+    void chrome.storage.local.get(SIGNED_IN_KEY).then((got) => { signedIn = !!got[SIGNED_IN_KEY]; renderView(); });
+  } catch { /* orphaned after extension reload */ }
+
+  // Fonts must be declared in the page document to be usable inside the shadow root.
+  if (!document.getElementById(FONTS_ID)) {
+    const link = document.createElement('link');
+    link.id = FONTS_ID; link.rel = 'stylesheet'; link.href = FONTS_URL;
+    document.head.append(link);
+  }
+
   wire();
+  renderView();
+
+  function renderView() {
+    const view = !signedIn ? 'signin' : lookupOpen ? 'lookup' : 'home';
+    for (const name of ['signin', 'home', 'lookup']) $(`view-${name}`).hidden = name !== view;
+  }
 
   /* ---------- data ---------- */
 
-  const lineKey = (l: AlignedLine) => `${deps.getVideoId()}|${l.start}`;
-
   async function loadStats() {
     try { stats = await readRecent(); } catch { /* orphaned after extension reload */ }
-  }
-  async function loadVocab() {
-    try { vocab = await getVocab(); } catch { /* orphaned */ }
   }
 
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== 'local' || !open) return;
     const keys = Object.keys(changes);
     if (keys.some(isStatsKey)) void loadStats().then(renderLive);
-    if (keys.includes(VOCAB_KEY)) void loadVocab().then(() => { renderSave(); renderAlerts(); });
   });
 
   function todayWatchSeconds() {
@@ -160,7 +205,6 @@ export function createPanel(deps: PanelDeps): PanelController {
 
   function renderAll() {
     renderStatus();
-    renderLine();
     renderToggles();
     for (const b of shadow.querySelectorAll<HTMLButtonElement>('.seg button')) {
       b.setAttribute('aria-pressed', String(b.dataset.range === range));
@@ -172,7 +216,6 @@ export function createPanel(deps: PanelDeps): PanelController {
   /** Every second while open. */
   function renderLive() {
     if (!open) return;
-    host.dataset.theme = document.documentElement.hasAttribute('dark') ? 'dark' : 'light';
     $('video-title').textContent = deps.getVideoId()
       ? document.title.replace(/^\(\d+\)\s*/, '').replace(/\s*-\s*YouTube$/, '')
       : 'No video open';
@@ -191,72 +234,6 @@ export function createPanel(deps: PanelDeps): PanelController {
       status.failed ? ['warn', 'Partly translated'] : ['ready', 'Ready'];
     pill.dataset.state = state;
     pill.textContent = text;
-  }
-
-  function renderLine() {
-    $('line-card').hidden = !line;
-    if (!line) return;
-    const l = line;
-    $('line-label').textContent = lineIsCurrent ? 'Now' : 'Last line';
-    $('line-time').textContent = fmtClock(l.start);
-
-    const tgt = $('line-tgt');
-    tgt.classList.toggle('pending', !l.tgt);
-    tgt.replaceChildren(l.tgt ? renderColored(l.tgt, l.pairs.map((p) => p.tgt)) : 'Translating…');
-    $('line-src').replaceChildren(renderColored(l.src, l.pairs.map((p) => p.src)));
-
-    const chips = $('chips');
-    chips.replaceChildren();
-    l.pairs.forEach((p, i) => {
-      if (!p.tgt) return;
-      const b = document.createElement('button');
-      b.type = 'button';
-      b.className = 'chip';
-      b.style.setProperty('--c', PALETTE[i % PALETTE.length]);
-      b.textContent = p.tgt;
-      b.title = p.note ? `${p.src} · ${p.note}` : p.src;
-      b.setAttribute('aria-pressed', String(i === selected));
-      b.addEventListener('click', () => selectPair(i));
-      chips.append(b);
-    });
-    chips.hidden = !l.tgt || !chips.childElementCount;
-    renderNote();
-    renderSave();
-  }
-
-  function renderNote() {
-    const note = $('note');
-    const pair: Pair | undefined = line?.pairs[selected];
-    note.hidden = !pair;
-    if (!pair) return;
-    const gloss = document.createElement('div');
-    gloss.className = 'gloss';
-    const word = document.createElement('span');
-    word.style.color = PALETTE[selected % PALETTE.length];
-    word.textContent = pair.tgt;
-    gloss.append(word, ` = ${pair.src}`);
-    const detail = document.createElement('div');
-    detail.className = 'detail';
-    detail.textContent = pair.note || 'No grammar note for this pair yet.';
-    note.replaceChildren(gloss, detail);
-  }
-
-  function saveTarget(kind: 'auto' | 'line' = 'auto'): Omit<VocabItem, 'saved_at'> | null {
-    if (!line) return null;
-    const pair = kind === 'auto' ? line.pairs[selected] : undefined;
-    return pair
-      ? { word: pair.tgt || pair.src, translation: pair.src, video_id: deps.getVideoId(), video_ts: line.start }
-      : { word: line.tgt || line.src, translation: line.src, video_id: deps.getVideoId(), video_ts: line.start };
-  }
-
-  const isSaved = (item: Omit<VocabItem, 'saved_at'> | null) => !!item && vocab.some((v) => sameVocab(v, item));
-
-  function renderSave() {
-    const btn = $('save');
-    const saved = isSaved(saveTarget());
-    const what = line?.pairs[selected] ? 'phrase' : 'line';
-    btn.textContent = saved ? `★ Saved` : `☆ Save ${what}`;
-    btn.setAttribute('aria-pressed', String(saved));
   }
 
   function renderToggles() {
@@ -294,21 +271,6 @@ export function createPanel(deps: PanelDeps): PanelController {
     }
     if (!deps.captionsOn()) {
       return { key: 'cc-off', tone: 'info', text: 'Bilingual captions are hidden.', actions: [['Show them', () => setCaptions(true)]] };
-    }
-    if (line) {
-      const k = lineKey(line);
-      const n = replays.get(k) ?? 0;
-      if (n >= 3 && !dismissed.has(k) && !isSaved(saveTarget('line'))) {
-        return {
-          key: `replay:${k}`,
-          tone: 'suggest',
-          text: `You've replayed this line ${n} times. Save it to review later?`,
-          actions: [
-            ['Save line', () => void save('line')],
-            ['Not now', () => { dismissed.add(k); renderAlerts(); }],
-          ],
-        };
-      }
     }
     return null;
   }
@@ -350,42 +312,6 @@ export function createPanel(deps: PanelDeps): PanelController {
 
   /* ---------- actions ---------- */
 
-  function selectPair(i: number) {
-    if (!line) return;
-    selected = selected === i ? -1 : i;
-    const pair = line.pairs[selected];
-    if (pair) {
-      const k = `${lineKey(line)}|${i}`;
-      if (!lookedUp.has(k)) {
-        lookedUp.add(k);
-        logEvent({
-          event_type: 'lookup', video_id: deps.getVideoId(), word: pair.tgt, lang: 'es',
-          meta: { src: pair.src, note: pair.note ?? null, line: line.tgt, video_ts: line.start, from: 'panel' },
-        });
-      }
-    }
-    renderLine();
-  }
-
-  async function save(kind: 'auto' | 'line' = 'auto') {
-    const item = saveTarget(kind);
-    if (!item) return;
-    await toggleVocab(item);
-    await loadVocab();
-    renderSave();
-    renderAlerts();
-  }
-
-  function replay() {
-    const video = deps.getVideo();
-    if (!video || !line) return;
-    video.currentTime = line.start;
-    void video.play().catch(() => {});
-    const k = lineKey(line);
-    replays.set(k, (replays.get(k) ?? 0) + 1);
-    renderAlerts();
-  }
-
   function setCaptions(on: boolean) {
     deps.setCaptionsOn(on);
     renderToggles();
@@ -400,21 +326,24 @@ export function createPanel(deps: PanelDeps): PanelController {
   }
 
   function wire() {
-    $('close').addEventListener('click', () => toggle(false));
+    for (const b of shadow.querySelectorAll('.close-panel')) b.addEventListener('click', () => toggle(false));
+    for (const b of shadow.querySelectorAll('.dash-link')) b.addEventListener('click', openDashboard);
+    for (const a of shadow.querySelectorAll('[data-todo]')) a.addEventListener('click', (e) => e.preventDefault());
+    $('signin').addEventListener('click', () => {
+      signedIn = true;
+      try { void chrome.storage.local.set({ [SIGNED_IN_KEY]: true }); } catch { /* orphaned */ }
+      renderView();
+    });
+    for (const b of shadow.querySelectorAll('.sign-out')) b.addEventListener('click', signOut);
+    $('lookup-back').addEventListener('click', () => {
+      lookupOpen = false;
+      renderView();
+      deps.onLookupBack?.();
+    });
     $('panel').addEventListener('keydown', (e) => { if (e.key === 'Escape') toggle(false); });
-    $('replay').addEventListener('click', replay);
-    $('save').addEventListener('click', () => void save());
     $('cc').addEventListener('click', () => setCaptions(!deps.captionsOn()));
-    $('dash').addEventListener('click', openDashboard);
     for (const b of shadow.querySelectorAll<HTMLButtonElement>('.seg button')) {
       b.addEventListener('click', () => { range = b.dataset.range as '30m' | '24h'; renderAll(); });
-    }
-    // Colored words in the line are clickable too, same as the chips.
-    for (const id of ['line-tgt', 'line-src']) {
-      $(id).addEventListener('click', (e) => {
-        const span = (e.target as Element).closest?.('[data-pair-index]') as HTMLElement | null;
-        if (span) selectPair(Number(span.dataset.pairIndex));
-      });
     }
     // Keep the panel visible in fullscreen by moving it into the fullscreen element.
     document.addEventListener('fullscreenchange', () => {
@@ -422,12 +351,21 @@ export function createPanel(deps: PanelDeps): PanelController {
     });
   }
 
+  // Front-end only: forget the signed-in flag and go back to the sign-in screen.
+  function signOut() {
+    signedIn = false;
+    try { void chrome.storage.local.remove(SIGNED_IN_KEY); } catch { /* orphaned */ }
+    if (lookupOpen) { lookupOpen = false; deps.onLookupBack?.(); }
+    renderView();
+    $('signin').focus({ preventScroll: true });
+  }
+
   function toggle(force?: boolean) {
     open = force ?? !open;
     if (open) {
       if (!host.isConnected) (document.fullscreenElement ?? document.body).append(host);
       host.style.display = '';
-      void Promise.all([loadStats(), loadVocab()]).then(renderAll);
+      void loadStats().then(renderAll);
       renderAll();
       clearInterval(timer);
       timer = window.setInterval(renderLive, 1000);
@@ -435,29 +373,28 @@ export function createPanel(deps: PanelDeps): PanelController {
     } else {
       host.style.display = 'none';
       clearInterval(timer);
+      deps.onClose?.();
     }
   }
 
   return {
     toggle,
-    setLine(next) {
-      if (next) {
-        if (!line || lineKey(next) !== lineKey(line)) selected = -1;
-        line = next;
-        lineIsCurrent = true;
-      } else {
-        lineIsCurrent = false; // keep showing the last line so it can still be saved or replayed
-      }
-      if (open) { renderLine(); renderAlerts(); }
+    practice: {
+      el: $('practice'),
+      show(title = 'Word lookup') {
+        $('lookup-title').textContent = title;
+        lookupOpen = true;
+        renderView();
+        if (!open) toggle(true);
+        $('panel').scrollTop = 0;
+      },
+      hide() { lookupOpen = false; renderView(); },
     },
     setStatus(next) {
       status = next;
       if (open) { renderStatus(); renderAlerts(); }
     },
     reset() {
-      line = null;
-      lineIsCurrent = false;
-      selected = -1;
       if (open) renderAll();
     },
   };
@@ -470,10 +407,4 @@ function fmtDuration(sec: number) {
   if (h) return `${h}h ${m}m`;
   if (m) return `${m}m`;
   return `${sec}s`;
-}
-
-function fmtClock(sec: number) {
-  sec = Math.max(0, Math.floor(sec));
-  const m = Math.floor(sec / 60);
-  return `${m}:${String(sec % 60).padStart(2, '0')}`;
 }
