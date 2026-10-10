@@ -16,7 +16,7 @@ On any non-YouTube tab, the icon opens the dashboard instead.
 | Alerts | No video, waiting for captions, failed batches, captions hidden, "replayed 3× → save it?" | computed every second |
 | Sparkline | Watch activity, last 30 min (per minute) or 24 h (per hour) | same local stats |
 | Toggle | Bilingual captions on/off (restores YouTube's own captions when off) | `content.ts` `setCaptionsOn` |
-| Footer | **Open dashboard →** `DASHBOARD/?user_id=demo&video_id=…&t=83&range=24h` | `settings.dashboardLink` |
+| Footer | **Open dashboard →** `DASHBOARD/?video_id=…&t=83&range=24h` (the dashboard has its own Google sign-in) | `settings.dashboardLink` |
 
 ## Files
 | File | Change |
@@ -25,7 +25,7 @@ On any non-YouTube tab, the icon opens the dashboard instead.
 | `src/background.ts` | New service worker: icon click, forwards events/saves to the backend, opens the dashboard |
 | `src/events.ts` | New: `logEvent()` (spec event types) and vocab save/unsave |
 | `src/stats.ts`, `src/watch.ts` | New: local per-minute watch buckets and daily counters |
-| `src/settings.ts` | New: `backendUrl`, `dashboardUrl`, `userId`, langs, level |
+| `src/settings.ts` | New: `backendUrl`, `dashboardUrl`, langs, level |
 | `src/content.ts` | Creates the panel, feeds it lines/status, starts the watch tracker, emits `caption_view` |
 | `manifest.json` | `action`, `Alt+L` command, background worker, `storage`, localhost host permissions |
 | `tsconfig.json` | `"types": ["vite/client", "chrome"]` so `chrome.*` type-checks |

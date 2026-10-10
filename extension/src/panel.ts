@@ -56,6 +56,7 @@ const HTML = `
       </svg>
       Sign in with Google
     </button>
+    <p class="signin-error" id="signin-error" role="alert" hidden></p>
     <p class="legal">By continuing you agree to our <a href="#" data-todo="terms">Terms</a> and <a href="#" data-todo="privacy">Privacy Policy</a>.</p>
   </div>
  </div>
@@ -122,7 +123,7 @@ const HTML = `
  </div>
 </aside>`;
 
-const SIGNED_IN_KEY = 'll:signedIn';
+const SESSION_KEY = 'session'; // written by auth.ts in the service worker
 const FONTS_ID = 'll-fonts';
 const FONTS_URL = 'https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&family=Caveat:wght@600&display=swap';
 
@@ -141,11 +142,11 @@ export function createPanel(deps: PanelDeps): PanelController {
   let timer = 0;
   let alertKey: string | null = null;
 
-  // Sign-in is a front-end gate only for now: there is no auth behind the button yet.
+  // The service worker owns the Google session (auth.ts); the panel only asks and listens for changes.
   let signedIn = false;
   let lookupOpen = false;
   try {
-    void chrome.storage.local.get(SIGNED_IN_KEY).then((got) => { signedIn = !!got[SIGNED_IN_KEY]; renderView(); });
+    void chrome.runtime.sendMessage({ type: 'whoami' }).then((r) => { signedIn = !!r?.user; renderView(); }).catch(() => {});
   } catch { /* orphaned after extension reload */ }
 
   // Fonts must be declared in the page document to be usable inside the shadow root.
@@ -170,7 +171,12 @@ export function createPanel(deps: PanelDeps): PanelController {
   }
 
   chrome.storage.onChanged.addListener((changes, area) => {
-    if (area !== 'local' || !open) return;
+    if (area !== 'local') return;
+    // Signed in from another tab, signed out, or the backend rejected an expired session.
+    if (SESSION_KEY in changes && !!changes[SESSION_KEY].newValue !== signedIn) {
+      if (signedIn) showSignIn(); else { signedIn = true; renderView(); }
+    }
+    if (!open) return;
     const keys = Object.keys(changes);
     if (keys.some(isStatsKey)) void loadStats().then(renderLive);
   });
@@ -332,11 +338,7 @@ export function createPanel(deps: PanelDeps): PanelController {
     for (const b of shadow.querySelectorAll('.close-panel')) b.addEventListener('click', () => toggle(false));
     for (const b of shadow.querySelectorAll('.dash-link')) b.addEventListener('click', openDashboard);
     for (const a of shadow.querySelectorAll('[data-todo]')) a.addEventListener('click', (e) => e.preventDefault());
-    $('signin').addEventListener('click', () => {
-      signedIn = true;
-      try { void chrome.storage.local.set({ [SIGNED_IN_KEY]: true }); } catch { /* orphaned */ }
-      renderView();
-    });
+    $('signin').addEventListener('click', signIn);
     for (const b of shadow.querySelectorAll('.sign-out')) b.addEventListener('click', signOut);
     $('lookup-back').addEventListener('click', () => {
       lookupOpen = false;
@@ -354,13 +356,34 @@ export function createPanel(deps: PanelDeps): PanelController {
     });
   }
 
-  // Front-end only: forget the signed-in flag and go back to the sign-in screen.
+  async function signIn() {
+    const button = $('signin') as HTMLButtonElement;
+    const error = $('signin-error');
+    button.disabled = true;
+    error.hidden = true;
+    try {
+      const r = await chrome.runtime.sendMessage({ type: 'signin' });
+      if (!r?.ok) throw new Error(r?.error ?? 'Sign-in failed.');
+      signedIn = true;
+      renderView();
+    } catch (e) {
+      error.textContent = e instanceof Error ? e.message : String(e);
+      error.hidden = false;
+    } finally {
+      button.disabled = false;
+    }
+  }
+
   function signOut() {
+    try { void chrome.runtime.sendMessage({ type: 'signout' }).catch(() => {}); } catch { /* orphaned */ }
+    showSignIn();
+  }
+
+  function showSignIn() {
     signedIn = false;
-    try { void chrome.storage.local.remove(SIGNED_IN_KEY); } catch { /* orphaned */ }
     if (lookupOpen) { lookupOpen = false; deps.onLookupBack?.(); }
     renderView();
-    $('signin').focus({ preventScroll: true });
+    if (open) $('signin').focus({ preventScroll: true });
   }
 
   function toggle(force?: boolean) {

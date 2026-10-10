@@ -49,6 +49,8 @@ a { color: var(--ink); } a:hover { color: var(--olive); }
   background: #fff; border: 1px solid #747775; border-radius: 26px; font-size: 16px; font-weight: 600; color: #1F1F1F; cursor: pointer;
 }
 .google:hover { background: #f7f7f7; }
+.google:disabled { opacity: .6; cursor: progress; }
+.signin-error { margin: 0; color: var(--danger); font-size: 14px; text-align: center; }
 .legal { margin: 0; font-size: 13px; color: var(--ink-soft); text-align: center; }
 
 /* Word lookup */

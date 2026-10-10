@@ -1,5 +1,5 @@
 import { dashboardLink, getSettings, type DashboardContext } from './settings';
-import { registerAuth } from './auth';
+import { authHeaders, clearSession, registerAuth } from './auth';
 const allowed = new Set(['/health', '/align', '/explain', '/tts', '/stt', '/vocab', '/events']);
 
 registerAuth();
@@ -12,21 +12,25 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
   (async () => {
     const settings = await getSettings();
     let body: BodyInit;
-    const headers: Record<string, string> = {};
+    const headers: Record<string, string> = await authHeaders();
     if (message.path === '/stt') {
       const { audio, mime, ...context } = message.body;
       if (typeof audio !== 'string' || audio.length > 35 * 1024 * 1024) throw new Error('Recording is too large.');
       const form = new FormData();
       form.append('audio', new Blob([Uint8Array.from(atob(audio), c => c.charCodeAt(0))], { type: mime }), 'attempt.webm');
-      for (const [key, value] of Object.entries({ ...context, user_id: settings.userId })) form.append(key, String(value));
+      for (const [key, value] of Object.entries(context)) form.append(key, String(value));
       body = form;
     } else {
       headers['Content-Type'] = 'application/json';
-      body = JSON.stringify(['/events', '/vocab'].includes(message.path) ? { ...message.body, user_id: settings.userId } : message.body);
+      body = JSON.stringify(message.body);
     }
     const response = await fetch(new URL(message.path, settings.backendUrl || 'http://localhost:3000'), {
       method: message.path === '/health' ? 'GET' : 'POST', headers, body: message.path === '/health' ? undefined : body, signal: AbortSignal.timeout(120000),
     });
+    if (response.status === 401) {
+      await clearSession();
+      throw new Error('Your sign-in expired. Sign in again from the langtube panel.');
+    }
     if (!response.ok) {
       const failure = await response.json().catch(() => ({}));
       throw new Error(failure.error ?? `Backend returned ${response.status}.`);
@@ -78,9 +82,10 @@ async function post(path: string, body: Record<string, unknown>) {
   try {
     const res = await fetch(new URL(path, s.backendUrl), {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ user_id: s.userId, ...body }),
+      headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+      body: JSON.stringify(body),
     });
+    if (res.status === 401) await clearSession();
     return { ok: res.ok, status: res.status };
   } catch (err) {
     console.warn('[LL worker] POST', path, 'failed', err);
