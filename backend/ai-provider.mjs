@@ -21,7 +21,7 @@ export function aiCacheKey(config = getAIConfig()) {
 }
 
 // Both providers return the same JSON contract. Never fall back to a paid provider.
-export async function generateJSON({ system, contents, schema }, {
+export async function generateJSON({ system, contents, schema, maxOutputTokens }, {
   config = getAIConfig(), fetchImpl = fetch,
   geminiFactory = options => new GoogleGenAI(options),
 } = {}) {
@@ -33,7 +33,7 @@ export async function generateJSON({ system, contents, schema }, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(45000),
         body: JSON.stringify({ model: config.model, stream: false, think: false,
           messages: [{ role: 'system', content: system }, { role: 'user', content: contents }],
-          format: schema, options: { temperature: 0.2, num_ctx: 8192, num_predict: 2048 },
+          format: schema, options: { temperature: 0.2, num_ctx: 8192, num_predict: maxOutputTokens ?? 2048 },
         }),
       });
     } catch (error) {
@@ -49,7 +49,8 @@ export async function generateJSON({ system, contents, schema }, {
     if (!process.env.GEMINI_API_KEY) throw new Error('GEMINI_API_KEY is required when AI_PROVIDER=gemini.');
     const client = geminiFactory({ apiKey: process.env.GEMINI_API_KEY, httpOptions: { timeout: 45000 } });
     const response = await client.models.generateContent({ model: config.model, contents,
-      config: { systemInstruction: system, temperature: 0.2, responseMimeType: 'application/json', responseJsonSchema: schema },
+      config: { systemInstruction: system, temperature: 0.2, responseMimeType: 'application/json', responseJsonSchema: schema,
+        ...(maxOutputTokens ? { maxOutputTokens } : {}) },
     });
     text = response.text;
   }

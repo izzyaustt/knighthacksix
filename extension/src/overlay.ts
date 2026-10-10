@@ -3,16 +3,16 @@ import type { AlignedLine } from './types';
 
 const CSS = `
 #ll-overlay {
-  position: absolute; left: 50%; transform: translateX(-50%); bottom: 12%; z-index: 60;
+  position: absolute; left: 50%; transform: translateX(-50%); bottom: 16%; z-index: 60;
   pointer-events: none; text-align: center; width: max-content; max-width: 80%;
   box-sizing: border-box; padding: .25em .6em; border-radius: .3em;
   background: rgba(8,8,8,.75); color: #fff; line-height: 1.3;
   font-family: "YouTube Noto", Roboto, Arial, Helvetica, sans-serif;
 }
-#movie_player:not(.ytp-autohide) #ll-overlay { bottom: 16%; }
 #ll-overlay[hidden], #ll-overlay [hidden] { display: none; }
-#ll-overlay [data-pair-index] { pointer-events:auto; cursor:pointer; }
-#ll-overlay [data-pair-index]:hover { text-decoration:underline; }
+#ll-overlay [data-word] { pointer-events:auto; cursor:pointer; background:none; border:0; padding:0; font:inherit; color:inherit; }
+#ll-overlay [data-word]:hover { text-decoration:underline; }
+#ll-overlay [data-word]:focus-visible { outline:2px solid white; outline-offset:2px; }
 #ll-overlay .ll-src { font-size: .9em; opacity: .85; }
 #ll-overlay .ll-tgt { font-weight: 700; }
 #ll-overlay .ll-loading { font-size: .7em; color: #fff; font-weight: 400; }

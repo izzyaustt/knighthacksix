@@ -1,5 +1,5 @@
 import { api } from './api';
-import { openPractice, resetPractice } from './practice';
+import { openPractice, resetPractice, waitForPracticeClose } from './practice';
 import { alignLines } from './align';
 import { logEvent } from './events';
 import { mountOverlay, renderLine, renderBuffering } from './overlay';
@@ -29,10 +29,11 @@ let captionBuffer: ReturnType<typeof createCaptionBuffer> | null = null;
 const isWatchPage = () => location.pathname === '/watch';
 const findVideo = () => document.querySelector<HTMLVideoElement>('#movie_player video.html5-main-video');
 
-function practice(line: AlignedLine, index?: number, trackLookup = true) {
+function practice(line: AlignedLine, index?: number, trackLookup = true, word?: { text: string; language: 'en' | 'es' }) {
+  captionBuffer?.pauseForInteraction();
   const standard = { start: line.start, end: line.end, source: line.src, target: line.tgt,
     pairs: line.pairs.map((p, i) => ({ ...p, srcStart: line.src.indexOf(p.src), tgtStart: line.tgt.indexOf(p.tgt), color: i % 3 })) };
-  void openPractice(standard, index === undefined ? undefined : standard.pairs[index], trackLookup);
+  void openPractice(standard, index === undefined ? undefined : standard.pairs[index], trackLookup, word);
 }
 
 const panel = createPanel({
@@ -87,8 +88,11 @@ function start(videoId: string | null, lines: Line[]) {
   applyCaptionsVisibility();
   const { root } = overlay;
   root.onclick = event => {
-    const span = (event.target as Element).closest?.('[data-pair-index]') as HTMLElement | null;
-    if (span && currentLine?.tgt) { event.stopPropagation(); practice(currentLine, Number(span.dataset.pairIndex)); }
+    const button = (event.target as Element).closest?.<HTMLElement>('[data-word]');
+    if (button && currentLine?.tgt) {
+      event.stopPropagation();
+      practice(currentLine, undefined, true, { text: button.dataset.word!, language: button.closest('.ll-src') ? 'en' : 'es' });
+    }
   };
 
   const aligned: AlignedLine[] = lines
@@ -129,6 +133,8 @@ async function alignProgressively(aligned: AlignedLine[], gen: number) {
     panel.setStatus({ kind: 'aligning', done: 0, total });
     const attempted = new Set<number>();
     while (true) {
+      await waitForPracticeClose();
+      if (gen !== generation) return;
       const offset = nextBatchOffset(aligned, findVideo()?.currentTime ?? 0, BATCH, attempted);
       if (offset === null) break;
       if (gen !== generation) return;

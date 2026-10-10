@@ -36,6 +36,16 @@ test('a user-paused video is never automatically started', () => {
   buffer.destroy();
 });
 
+test('opening a word explanation cancels automatic buffering resume', () => {
+  const video = new Video(), lines = fixture();
+  const buffer = createCaptionBuffer(video, () => lines, () => {});
+  buffer.update(); buffer.pauseForInteraction();
+  lines.forEach(line => { line.tgt = 'listo'; }); buffer.update();
+  assert.equal(video.paused, true);
+  assert.equal(video.resumes, 0);
+  buffer.destroy();
+});
+
 test('overlapping earlier captions do not block an already translated current line', () => {
   const video = new Video(); video.currentTime = 3;
   const lines = [{ start: 0, end: 10, src: 'old', tgt: '', pairs: [] }, { start: 2, end: 8, src: 'new', tgt: 'nuevo', pairs: [] }];

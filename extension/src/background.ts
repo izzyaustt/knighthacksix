@@ -38,7 +38,7 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
     return response.json();
   })().then(data => reply({ ok: true, data })).catch(error => {
     reply({ ok: false, error: error.message === 'Failed to fetch'
-      ? 'Cannot reach the backend. Start it on localhost:3000, then click Retry.' : error.message });
+      ? 'Cannot reach the configured backend. Check the server and connection, then click Retry.' : error.message });
   });
   return true;
 });

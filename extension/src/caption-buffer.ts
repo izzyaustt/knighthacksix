@@ -32,6 +32,7 @@ export function createCaptionBuffer(video: HTMLVideoElement, getLines: () => Ali
   video.addEventListener('seeked', update);
   return {
     update,
+    pauseForInteraction() { held = false; video.pause(); onWaiting(false); },
     setEnabled(value: boolean) { enabled = value; update(); },
     destroy() {
       destroyed = true;
