@@ -1,15 +1,20 @@
 {
   "manifest_version": 3,
-  "name": "[APP NAME]",
+  "name": "langtube",
   "version": "0.1.0",
   "action": { "default_title": "Open learning panel" },
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA3OpJSLRiZM4rNrcPpqSHoXV5nQF2x7f8ZDzuHMR2jIejDrx6jJxiMiNtVcqtpt3ryGXMRAXXUVDSySxp3JfPT97upKXJODOm0EfClhgkSUeZK5YSq91VZcQxj/6J2Rox+t8RCE82M47C8qiG8sV2ZUIk4rAuUUZSjvVgQslYtRPQca3PgNsyIoWYNC0BL65Pdl6fMaxG1clBatB9BMA0OeJJ4g1v3ZafKOp6c1hPNtx+Vojq/I3CRkdMAaqomUTbzw43V6NxC86ZVHuuMJJUHLXSfZJEDqzUaUZou46TDDYlXcHQlSaxOaLTQ4VzO82+nrpxqJJiaeDNi+aTy7C+UQIDAQAB",
+  "oauth2": {
+    "client_id": "428266368805-98d7reo8ea0fu89va3i1sbfqfbredcag.apps.googleusercontent.com",
+    "scopes": ["openid", "email", "profile"]
+  },
   "commands": {
     "_execute_action": {
       "suggested_key": { "default": "Alt+L" },
       "description": "Toggle the learning panel"
     }
   },
-  "permissions": ["storage"],
+  "permissions": ["storage", "identity"],
   "host_permissions": [
     "https://www.youtube.com/*", "http://localhost/*", "http://127.0.0.1/*",
     "http://localhost:3000/*"
