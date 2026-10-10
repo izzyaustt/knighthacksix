@@ -1,6 +1,7 @@
 import './env.mjs';
 import fs from 'fs';
 import { createHash } from 'node:crypto';
+import { aiCacheKey, getAIConfig } from './ai-provider.mjs';
 import { explainPhrase } from './explain.mjs';
 import express from 'express';
 import cors from 'cors';
@@ -13,6 +14,7 @@ import { createPool } from './database.mjs';
 import { createDataRouter, createAttemptHandler } from './data-routes.mjs';
 
 const app = express();
+const aiConfig = getAIConfig();
 const pool = createPool();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
 app.use(cors());
@@ -40,7 +42,7 @@ app.post('/align', async (req, res) => {
   }
 
   const digest = createHash('sha256').update(JSON.stringify(lines)).digest('hex');
-  const key = `${videoId}|${lang}|${level}|${startIndex}|${digest}`;
+  const key = `${aiCacheKey(aiConfig)}|${videoId}|${lang}|${level}|${startIndex}|${digest}`;
   if (cache.has(key)) return res.json({ startIndex, lines: cache.get(key), cached: true });
 
   const aligned = await alignBatch(lines, { level });
@@ -60,7 +62,8 @@ app.post('/explain', async (req, res) => {
 });
 
 app.get('/health', (_req, res) => {
-  res.json({ ok: true, elevenlabs: !!process.env.ELEVENLABS_API_KEY, gemini: !!process.env.GEMINI_API_KEY });
+  res.json({ ok: true, llm: aiConfig.provider, elevenlabs: !!process.env.ELEVENLABS_API_KEY, gemini: !!process.env.GEMINI_API_KEY,
+    ai: { provider: process.env.MOCK === '1' ? 'mock' : aiConfig.provider, model: aiConfig.model, batch_size: aiConfig.batchSize } });
 });
 
 // --- ElevenLabs ---
@@ -85,7 +88,7 @@ app.use((err, _req, res, _next) => {
 });
 
 const port = Number(process.env.PORT) || 3000;
-const server = app.listen(port, '127.0.0.1', () => console.log(`backend on http://localhost:${port}`));
+const server = app.listen(port, '127.0.0.1', () => console.log(`backend on http://localhost:${port} · AI: ${process.env.MOCK === '1' ? 'mock' : aiConfig.provider} (${aiConfig.model})`));
 for (const signal of ['SIGINT', 'SIGTERM']) {
   process.once(signal, () => server.close(() => pool.end().then(() => process.exit(0))));
 }
