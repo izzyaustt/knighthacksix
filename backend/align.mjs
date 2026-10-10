@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import fs from 'fs';
 import { Type } from '@google/genai';
-import { generateJson } from './llm.mjs';
+import { generateJson, provider } from './llm.mjs';
 
 const SYSTEM = fs.readFileSync(new URL('./prompt.txt', import.meta.url), 'utf8');
 
@@ -47,8 +47,22 @@ export function validate(text, target, pairs) {
   return out;
 }
 
+// A small local model is slow and has a short context window: give it fewer lines per request,
+// and skip `color`, which validate() reassigns anyway (about a quarter fewer output tokens).
+const LOCAL_CHUNK = 10;
+const localSchema = structuredClone(schema);
+delete localSchema.items.properties.pairs.items.properties.color;
+localSchema.items.properties.pairs.items.required = ['src', 'tgt'];
+
 // lines: [{start, end, text}] (about 30). Returns AlignedLine[] in the same order.
-export async function alignBatch(lines, { level = 'medium' } = {}) {
+export async function alignBatch(lines, options = {}) {
+  if (provider() !== 'ollama') return alignChunk(lines, schema, options);
+  const chunks = [];
+  for (let i = 0; i < lines.length; i += LOCAL_CHUNK) chunks.push(lines.slice(i, i + LOCAL_CHUNK));
+  return (await Promise.all(chunks.map((chunk) => alignChunk(chunk, localSchema, options)))).flat();
+}
+
+async function alignChunk(lines, schema, { level = 'medium' } = {}) {
   const contents = JSON.stringify(lines.map((l, id) => ({ id, text: l.text })));
   let parsed = null;
   for (let attempt = 0; attempt < 2 && !parsed; attempt++) {

@@ -25,7 +25,7 @@ async function ollama({ system, contents, schema, temperature }) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model, stream: false, format, options: { temperature },
+        model, stream: false, format, options: { temperature, num_ctx: 8192 },
         messages: [{ role: 'system', content: system }, { role: 'user', content: contents }],
       }),
       signal: AbortSignal.timeout(110000),
