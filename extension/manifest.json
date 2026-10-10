@@ -2,8 +2,16 @@
   "manifest_version": 3,
   "name": "[APP NAME]",
   "version": "0.1.0",
+  "action": { "default_title": "Open learning panel" },
+  "commands": {
+    "_execute_action": {
+      "suggested_key": { "default": "Alt+L" },
+      "description": "Toggle the learning panel"
+    }
+  },
+  "permissions": ["storage"],
   "host_permissions": [
-    "https://www.youtube.com/*",
+    "https://www.youtube.com/*", "http://localhost/*", "http://127.0.0.1/*",
     "http://localhost:3000/*"
   ],
   "content_scripts": [

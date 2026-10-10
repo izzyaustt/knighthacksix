@@ -1,6 +1,11 @@
 import { activeIndex, jsonCaptions, segments } from './captions';
 import type { Line, AlignedLine, Pair } from './captions';
 import { api, base64 } from './api';
+import { logEvent } from './events';
+import { createPanel } from './panel';
+import { updateDay } from './stats';
+import type { AlignedLine as PanelLine } from './types';
+import { startWatchTracker, type WatchTracker } from './watch';
 import styles from './style.css?inline';
 
 let videoId = '', sourceKey = '', generation = 0;
@@ -11,9 +16,41 @@ let selected: { line: AlignedLine; phrase: string; translation: string; videoId:
 let selectionVersion = 0, audio: HTMLAudioElement | null = null;
 let recorder: MediaRecorder | null = null, recordTimer: ReturnType<typeof setTimeout> | null = null;
 let recordingPending = false;
+let watch: WatchTracker | null = null;
 
 const video = () => document.querySelector<HTMLVideoElement>('#movie_player video');
 const currentId = () => new URLSearchParams(location.search).get('v') ?? '';
+const isWatchPage = () => location.pathname === '/watch';
+
+// Learning panel (toolbar icon / Alt+L), separate from the in-player phrase practice panel.
+const sidebar = createPanel({
+  getVideo: video,
+  getVideoId: () => (isWatchPage() && videoId ? videoId : null),
+  pendingWatch: () => watch?.pending() ?? new Map(),
+  captionsOn: () => enabled,
+  setCaptionsOn: setEnabled,
+});
+chrome.runtime.onMessage.addListener((msg) => {
+  if (msg?.type === 'll:toggle-panel') sidebar.toggle();
+});
+
+function setEnabled(on: boolean) {
+  enabled = on; rendered = -2;
+  if (host) {
+    captions.hidden = !enabled; panel.hidden = true;
+    root.querySelector('.toolbar button')!.textContent = enabled ? 'Spanish overlay' : 'Overlay off';
+  }
+  if (!enabled) { selectionVersion++; stopRecording(); audio?.pause(); }
+  tick();
+}
+// The sidebar's line shape (types.ts) differs from the backend's (captions.ts).
+function sidebarLine(index: number): PanelLine | null {
+  if (index < 0 || !lines[index]) return null;
+  const { start, end, text } = lines[index], line = aligned.get(index);
+  return line
+    ? { start, end, src: line.source, tgt: line.target, pairs: line.pairs.map(p => ({ src: p.src, tgt: p.tgt })) }
+    : { start, end, src: text, tgt: '', pairs: [] };
+}
 function button(label: string, action: () => void | Promise<void>) {
   const b = document.createElement('button'); b.type = 'button'; b.textContent = label;
   b.addEventListener('click', e => { e.stopPropagation(); Promise.resolve(action()).catch(showError); });
@@ -29,15 +66,11 @@ function mount() {
   root = host.attachShadow({ mode: 'open' });
   const css = document.createElement('style'); css.textContent = styles; root.append(css);
   const toolbar = document.createElement('div'); toolbar.className = 'toolbar';
-  toolbar.append(button('Spanish overlay', () => {
-    enabled = !enabled; rendered = -2; captions.hidden = !enabled; panel.hidden = true;
-    toolbar.querySelector('button')!.textContent = enabled ? 'Spanish overlay' : 'Overlay off';
-    if (!enabled) { selectionVersion++; stopRecording(); audio?.pause(); }
-    tick();
-  }), button('Retry', () => { void translate(generation); }));
+  toolbar.append(button(enabled ? 'Spanish overlay' : 'Overlay off', () => setEnabled(!enabled)),
+    button('Retry', () => { void translate(generation); }));
   status = document.createElement('span'); status.setAttribute('role', 'status'); status.textContent = 'Waiting for English captions. Turn on CC.';
   toolbar.append(status);
-  captions = document.createElement('div'); captions.className = 'captions';
+  captions = document.createElement('div'); captions.className = 'captions'; captions.hidden = !enabled;
   panel = document.createElement('section'); panel.className = 'panel'; panel.hidden = true;
   panel.setAttribute('aria-label', 'Phrase practice');
   root.append(toolbar, captions, panel); player.append(host);
@@ -46,6 +79,8 @@ function mount() {
 function reset() {
   generation++; videoId = currentId(); sourceKey = ''; lines = []; aligned.clear(); rendered = -2;
   selected = null; selectionVersion++; stopRecording(); audio?.pause();
+  watch?.stop(); watch = null;
+  sidebar.reset(); sidebar.setStatus(isWatchPage() ? { kind: 'waiting' } : { kind: 'idle' });
   document.querySelector('#movie_player')?.classList.remove('ll-active');
   if (mount()) { captions.replaceChildren(); panel.hidden = true; status.textContent = 'Waiting for English captions. Turn on CC.'; }
 }
@@ -65,6 +100,9 @@ async function translate(epoch: number) {
   if (translating === epoch || !lines.length) return;
   translating = epoch;
   const capturedLines = lines, capturedId = videoId;
+  const total = Math.ceil(lines.length / 30);
+  let done = 0;
+  sidebar.setStatus({ kind: 'aligning', done, total });
   try {
     // Start near playback so seeking and long videos do not wait for earlier batches.
     const active = Math.max(0, activeIndex(capturedLines, video()?.currentTime ?? 0));
@@ -73,7 +111,7 @@ async function translate(epoch: number) {
     for (const startIndex of batches) {
       if (epoch !== generation) return;
       const chunk = capturedLines.slice(startIndex, startIndex + 30);
-      if (chunk.every((_, i) => aligned.has(startIndex + i))) continue;
+      if (chunk.every((_, i) => aligned.has(startIndex + i))) { done++; continue; }
       status.textContent = `Translating captions ${startIndex + 1}–${startIndex + chunk.length}…`;
       const result = await api('/align', { videoId: capturedId, lang: 'es', level: 'medium', startIndex, lines: chunk });
       if (epoch !== generation) return;
@@ -82,9 +120,15 @@ async function translate(epoch: number) {
       }
       result.lines.forEach((line: AlignedLine, i: number) => aligned.set(startIndex + i, line));
       rendered = -2; tick();
+      sidebar.setStatus({ kind: 'aligning', done: ++done, total });
     }
-    if (epoch === generation) status.textContent = 'Ready · click a colored phrase to practice';
-  } catch (error) { if (epoch === generation) showError(error); }
+    if (epoch === generation) {
+      status.textContent = 'Ready · click a colored phrase to practice';
+      sidebar.setStatus({ kind: 'ready', total, failed: 0 });
+    }
+  } catch (error) {
+    if (epoch === generation) { showError(error); sidebar.setStatus({ kind: 'ready', total, failed: total - done }); }
+  }
   finally { if (translating === epoch) translating = -1; }
 }
 
@@ -106,6 +150,12 @@ window.addEventListener('message', e => {
     const parsed = parse(e.data.body).sort((a, b) => a.start - b.start);
     if (!parsed.length) return;
     generation++; sourceKey = key; lines = parsed; aligned.clear(); rendered = -2;
+    // caption_view: once when captions load, then once per minute actually watched.
+    const v = video(), id = videoId;
+    watch?.stop();
+    watch = v && startWatchTracker(v, () =>
+      logEvent({ event_type: 'caption_view', video_id: id, lang: 'es', meta: { reason: 'minute' } }));
+    logEvent({ event_type: 'caption_view', video_id: id, lang: 'es', meta: { reason: 'loaded', lines: parsed.length } });
     void translate(generation);
   } catch (error) { showError(error); }
 });
@@ -125,6 +175,7 @@ function tick() {
   player?.classList.toggle('ll-active', enabled && !!line);
   if (rendered === index) return;
   rendered = index; captions.replaceChildren();
+  sidebar.setLine(sidebarLine(index));
   if (!enabled || index < 0) return;
   if (!line) { captions.textContent = lines[index].text; return; }
   for (const target of [false, true]) {
@@ -157,12 +208,14 @@ async function selectPhrase(line: AlignedLine, pair?: Pair) {
   actions.append(button('Listen', () => speak(snapshot.phrase, 1)), button('Slow', () => speak(snapshot.phrase, 0.7)),
     button('Save phrase', async () => {
       await api('/vocab', { user_id: 'demo-user', lang: 'es', word: snapshot.phrase, translation: snapshot.translation, video_id: snapshot.videoId, video_ts: line.start });
+      void updateDay(d => { d.saves++; });
       if (epoch === selectionVersion) notes.textContent = 'Saved to vocabulary.';
     }), button('Record / Stop', record));
   const result = document.createElement('div'); result.id = 'feedback'; result.setAttribute('role', 'status');
   result.textContent = 'Record up to 15 seconds. Your browser will ask for microphone access.';
   panel.append(actions, result);
   // Persist the click independently of the explanation provider.
+  void updateDay(d => { d.lookups++; }); // local count for the learning panel
   void api('/events', { user_id: 'demo-user', event_id: crypto.randomUUID(), event_type: 'lookup', lang: 'es', word: snapshot.phrase, video_id: snapshot.videoId }).catch(showError);
   try {
     const explanation = await api('/explain', { phrase: snapshot.phrase, source: snapshot.translation, context: line.target, lang: 'es' });

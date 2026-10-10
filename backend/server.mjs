@@ -6,6 +6,7 @@ import express from 'express';
 import cors from 'cors';
 import multer from 'multer';
 import { alignBatch } from './align.mjs';
+import { provider } from './llm.mjs';
 import { stt } from './src/elevenlabs.ts';
 import { cachedTts } from './src/ttsCache.ts';
 import { scoreAttempt } from './src/scoring.ts';
@@ -40,7 +41,8 @@ app.post('/align', async (req, res) => {
   }
 
   const digest = createHash('sha256').update(JSON.stringify(lines)).digest('hex');
-  const key = `${videoId}|${lang}|${level}|${startIndex}|${digest}`;
+  // Local-model translations get their own cache entries so they are never served as Gemini's.
+  const key = `${provider() === 'ollama' ? 'ollama|' : ''}${videoId}|${lang}|${level}|${startIndex}|${digest}`;
   if (cache.has(key)) return res.json({ startIndex, lines: cache.get(key), cached: true });
 
   const aligned = await alignBatch(lines, { level });
@@ -60,7 +62,7 @@ app.post('/explain', async (req, res) => {
 });
 
 app.get('/health', (_req, res) => {
-  res.json({ ok: true, elevenlabs: !!process.env.ELEVENLABS_API_KEY, gemini: !!process.env.GEMINI_API_KEY });
+  res.json({ ok: true, llm: provider(), elevenlabs: !!process.env.ELEVENLABS_API_KEY, gemini: !!process.env.GEMINI_API_KEY });
 });
 
 // --- ElevenLabs ---

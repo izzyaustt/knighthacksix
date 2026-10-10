@@ -18,6 +18,7 @@ Existing shell settings take priority. The server then loads `backend/.env`, fol
 - Database: `DATABASE_URL` or `TIGER_DATA_CONNECTION_STRING`.
 - Speech: `ELEVENLABS_API_KEY` and optional `ELEVENLABS_VOICE_ID`.
 - Alignment: `GEMINI_API_KEY` and optional `GEMINI_MODEL`.
+- Local testing without Gemini quota: `LLM_PROVIDER=ollama` sends `/align` and `/explain` to a local [Ollama](https://ollama.com) model (`OLLAMA_MODEL`, default `gemma3:4b`; `OLLAMA_URL`, default `http://localhost:11434`). Install with `brew install ollama`, run `ollama serve`, then `ollama pull gemma3:4b`. Translation quality is lower than Gemini; leave `LLM_PROVIDER` unset in production. `GET /health` reports the active provider as `llm`.
 
 Database connections use TLS with certificate verification. If the service needs a custom root certificate, configure `PGSSLROOTCERT` or the connection URL's `sslrootcert` path. Credentials stay server-side and database errors do not expose connection values.
 

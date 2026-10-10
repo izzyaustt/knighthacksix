@@ -1,9 +1,8 @@
 import 'dotenv/config';
 import fs from 'fs';
-import { GoogleGenAI, Type } from '@google/genai';
+import { Type } from '@google/genai';
+import { generateJson, provider } from './llm.mjs';
 
-const MODEL = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 const SYSTEM = fs.readFileSync(new URL('./prompt.txt', import.meta.url), 'utf8');
 
 const schema = {
@@ -48,23 +47,27 @@ export function validate(text, target, pairs) {
   return out;
 }
 
+// A small local model is slow and has a short context window: give it fewer lines per request,
+// and skip `color`, which validate() reassigns anyway (about a quarter fewer output tokens).
+const LOCAL_CHUNK = 10;
+const localSchema = structuredClone(schema);
+delete localSchema.items.properties.pairs.items.properties.color;
+localSchema.items.properties.pairs.items.required = ['src', 'tgt'];
+
 // lines: [{start, end, text}] (about 30). Returns AlignedLine[] in the same order.
-export async function alignBatch(lines, { level = 'medium' } = {}) {
+export async function alignBatch(lines, options = {}) {
+  if (provider() !== 'ollama') return alignChunk(lines, schema, options);
+  const chunks = [];
+  for (let i = 0; i < lines.length; i += LOCAL_CHUNK) chunks.push(lines.slice(i, i + LOCAL_CHUNK));
+  return (await Promise.all(chunks.map((chunk) => alignChunk(chunk, localSchema, options)))).flat();
+}
+
+async function alignChunk(lines, schema, { level = 'medium' } = {}) {
   const contents = JSON.stringify(lines.map((l, id) => ({ id, text: l.text })));
   let parsed = null;
   for (let attempt = 0; attempt < 2 && !parsed; attempt++) {
     try {
-      const res = await ai.models.generateContent({
-        model: MODEL,
-        contents,
-        config: {
-          systemInstruction: `${SYSTEM}\n\nLearner level: ${level}.`,
-          temperature: 0.2,
-          responseMimeType: 'application/json',
-          responseSchema: schema,
-        },
-      });
-      const value = JSON.parse(res.text);
+      const value = await generateJson({ system: `${SYSTEM}\n\nLearner level: ${level}.`, contents, schema });
       if (!Array.isArray(value)) throw new Error('Expected an array of translated lines');
       parsed = value;
     } catch (e) {
