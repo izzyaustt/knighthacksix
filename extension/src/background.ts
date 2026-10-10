@@ -50,15 +50,21 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
 });
 
 chrome.action.onClicked.addListener(async (tab) => {
-  if (tab.id != null && tab.url?.startsWith('https://www.youtube.com/')) {
-    try {
-      await chrome.tabs.sendMessage(tab.id, { type: 'll:toggle-panel' });
-      return;
-    } catch {
-      // Content script not in this tab yet (tab predates install or reload). Fall through.
-    }
+  if (tab.id == null) return;
+  try {
+    // The YouTube content script owns the sidebar. Send directly rather than
+    // relying on tab.url, which Chrome may omit without broad tabs access.
+    await chrome.tabs.sendMessage(tab.id, { type: 'll:toggle-panel' });
+    await chrome.action.setBadgeText({ tabId: tab.id, text: '' });
+    await chrome.action.setTitle({ tabId: tab.id, title: 'Open learning panel' });
+  } catch {
+    // A missing/reloaded content script must never navigate to the dashboard.
+    await chrome.action.setBadgeText({ tabId: tab.id, text: '↻' });
+    await chrome.action.setTitle({
+      tabId: tab.id,
+      title: 'Open a YouTube video and refresh the page, then click to open the sidebar',
+    });
   }
-  await openDashboard({});
 });
 
 chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
