@@ -44,3 +44,15 @@ backend before the options page exists, run in the service worker's DevTools con
 - Phase 7/8: add Hear it / Slow / Record buttons next to Replay; `logEvent({ event_type: 'shadow_attempt', score })` already feeds `DayStats.shadow`, so a "Shadow avg" number can replace Lookups.
 - Un-save is local only (the API has no `DELETE /vocab`).
 - A non-localhost backend needs its origin added to `host_permissions`.
+
+## Google account chooser
+
+The sidebar now uses an explicit Google account chooser instead of Chrome’s cached profile login. Every click on Sign in with Google requests `prompt=select_account`. Closing the Google window leaves the sidebar signed out.
+
+1. Copy `.env.example` to `.env` and set `VITE_GOOGLE_CLIENT_ID` to the **Web application** client ID used by the dashboard and backend (`GOOGLE_WEB_CLIENT_ID`). Do not use the Chrome Extension client ID for this flow.
+2. In Google Cloud → Google Auth Platform → Clients, open that Web application client and add this exact **Authorized redirect URI** for the current extension:
+   `https://ikojopihmoepapcekacledaaedjlbdin.chromiumapp.org/google-auth`
+3. Save, rebuild the extension, reload **langtube** in `chrome://extensions`, and refresh YouTube.
+4. Sign out, click Sign in with Google, and confirm Google shows account selection. Close it to check you remain signed out. Reopen it and choose an account to check login completes.
+
+The extension ID comes from the manifest key; if that key changes, register the new redirect URI returned by `chrome.identity.getRedirectURL('google-auth')`. For deployment, configure HTTPS backend/dashboard origins too.

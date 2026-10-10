@@ -13,6 +13,7 @@ let session: Session | null = (() => {
   try { return JSON.parse(localStorage.getItem(STORAGE_KEY) ?? 'null') as Session | null; } catch { return null; }
 })();
 const listeners = new Set<() => void>();
+let authRevision = 0;
 
 function setSession(next: Session | null) {
   session = next;
@@ -31,6 +32,7 @@ export function useSession(): Session | null {
 
 /** Exchanges a Google ID token from the Sign in with Google button for a backend session. */
 export async function signIn(idToken: string): Promise<void> {
+  const revision = ++authRevision;
   const response = await fetch(new URL('/auth/google', BACKEND_URL), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -40,14 +42,29 @@ export async function signIn(idToken: string): Promise<void> {
     const failure = await response.json().catch(() => ({}));
     throw new Error(failure.error ?? `Sign-in failed (${response.status}).`);
   }
-  setSession((await response.json()) as Session);
+  const next = (await response.json()) as Session;
+  if (revision !== authRevision) return; // Logout superseded this token exchange.
+  setSession(next);
 }
 
 /** Also called when the backend rejects the session (expired or revoked). */
 export function signOut() {
-  window.google?.accounts.id.disableAutoSelect();
+  authRevision++;
   setSession(null);
+  // Google cleanup must never prevent clearing our own session.
+  try {
+    window.google?.accounts.id.cancel();
+    window.google?.accounts.id.disableAutoSelect();
+  } catch { /* Already signed out locally. */ }
 }
+
+window.addEventListener('storage', (event) => {
+  if (event.key !== STORAGE_KEY && event.key !== null) return;
+  authRevision++;
+  try { session = event.newValue ? JSON.parse(event.newValue) as Session : null; }
+  catch { session = null; }
+  for (const l of listeners) l();
+});
 
 // The parts of Google Identity Services (https://accounts.google.com/gsi/client) we use.
 declare global {
@@ -55,8 +72,9 @@ declare global {
     google?: {
       accounts: {
         id: {
-          initialize(config: { client_id: string; callback: (r: { credential: string }) => void }): void;
-          renderButton(el: HTMLElement, options: Record<string, string | number>): void;
+          initialize(config: { client_id: string; auto_select: boolean; button_auto_select: boolean; callback: (r: { credential: string }) => void }): void;
+          renderButton(el: HTMLElement, options: Record<string, string | number | (() => void)>): void;
+          cancel(): void;
           disableAutoSelect(): void;
         };
       };

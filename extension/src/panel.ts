@@ -145,8 +145,12 @@ export function createPanel(deps: PanelDeps): PanelController {
   // The service worker owns the Google session (auth.ts); the panel only asks and listens for changes.
   let signedIn = false;
   let lookupOpen = false;
+  let authRevision = 0;
   try {
-    void chrome.runtime.sendMessage({ type: 'whoami' }).then((r) => { signedIn = !!r?.user; renderView(); }).catch(() => {});
+    const revision = authRevision;
+    void chrome.runtime.sendMessage({ type: 'whoami' }).then((r) => {
+      if (revision === authRevision) { signedIn = !!r?.user; renderView(); }
+    }).catch(() => {});
   } catch { /* orphaned after extension reload */ }
 
   // Fonts must be declared in the page document to be usable inside the shadow root.
@@ -173,8 +177,10 @@ export function createPanel(deps: PanelDeps): PanelController {
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== 'local') return;
     // Signed in from another tab, signed out, or the backend rejected an expired session.
-    if (SESSION_KEY in changes && !!changes[SESSION_KEY].newValue !== signedIn) {
-      if (signedIn) showSignIn(); else { signedIn = true; renderView(); }
+    if (SESSION_KEY in changes) {
+      authRevision++;
+      if (!changes[SESSION_KEY].newValue) showSignIn();
+      else { signedIn = true; renderView(); }
     }
     if (!open) return;
     const keys = Object.keys(changes);
@@ -357,6 +363,7 @@ export function createPanel(deps: PanelDeps): PanelController {
   }
 
   async function signIn() {
+    const revision = ++authRevision;
     const button = $('signin') as HTMLButtonElement;
     const error = $('signin-error');
     button.disabled = true;
@@ -364,8 +371,7 @@ export function createPanel(deps: PanelDeps): PanelController {
     try {
       const r = await chrome.runtime.sendMessage({ type: 'signin' });
       if (!r?.ok) throw new Error(r?.error ?? 'Sign-in failed.');
-      signedIn = true;
-      renderView();
+      if (revision === authRevision) { signedIn = true; renderView(); }
     } catch (e) {
       error.textContent = e instanceof Error ? e.message : String(e);
       error.hidden = false;
@@ -374,14 +380,25 @@ export function createPanel(deps: PanelDeps): PanelController {
     }
   }
 
-  function signOut() {
-    try { void chrome.runtime.sendMessage({ type: 'signout' }).catch(() => {}); } catch { /* orphaned */ }
+  async function signOut() {
+    authRevision++;
     showSignIn();
+    try {
+      // Also clear locally if an extension reload disconnected the worker.
+      await chrome.storage.local.remove([SESSION_KEY, 'll:signedIn']);
+      const result = await chrome.runtime.sendMessage({ type: 'signout' });
+      if (!result?.ok) throw new Error(result?.error ?? 'Sign-out failed.');
+    } catch (error) {
+      $('signin-error').textContent = 'Sign-out cleanup failed. Reload the YouTube tab and try again.';
+      $('signin-error').hidden = false;
+      console.warn('[LL panel] Sign-out cleanup failed.', error);
+    }
   }
 
   function showSignIn() {
     signedIn = false;
-    if (lookupOpen) { lookupOpen = false; deps.onLookupBack?.(); }
+    lookupOpen = false;
+    deps.onLookupBack?.();
     renderView();
     if (open) $('signin').focus({ preventScroll: true });
   }
