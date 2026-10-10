@@ -1,4 +1,4 @@
-import 'dotenv/config';
+import './env.mjs';
 import fs from 'fs';
 import express from 'express';
 import cors from 'cors';
@@ -7,15 +7,17 @@ import { alignBatch } from './align.mjs';
 import { stt } from './src/elevenlabs.ts';
 import { cachedTts } from './src/ttsCache.ts';
 import { scoreAttempt } from './src/scoring.ts';
-import { events, mockStats, vocab } from './src/mocks.ts';
+import { createPool } from './database.mjs';
+import { createDataRouter, createAttemptHandler } from './data-routes.mjs';
 
 const app = express();
+const pool = createPool();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
 app.use(cors());
 app.use(express.json({ limit: '2mb' }));
 
-const CACHE_FILE = new URL('./cache/align.json', import.meta.url);
-fs.mkdirSync(new URL('./cache/', import.meta.url), { recursive: true });
+const CACHE_FILE = new URL('./.cache/align.json', import.meta.url);
+fs.mkdirSync(new URL('./.cache/', import.meta.url), { recursive: true });
 const cache = new Map(fs.existsSync(CACHE_FILE) ? Object.entries(JSON.parse(fs.readFileSync(CACHE_FILE, 'utf8'))) : []);
 const save = () => fs.writeFileSync(CACHE_FILE, JSON.stringify(Object.fromEntries(cache)));
 
@@ -52,46 +54,10 @@ app.post('/tts', async (req, res) => {
   res.set({ 'Content-Type': 'audio/mpeg', 'X-Cache': cached ? 'HIT' : 'MISS' }).send(audio);
 });
 
-app.post('/stt', upload.single('audio'), async (req, res) => {
-  const target = req.body?.target_text;
-  if (!req.file) return res.status(400).json({ error: 'audio file is required' });
-  if (typeof target !== 'string' || !target.trim()) return res.status(400).json({ error: 'target_text is required' });
+app.post('/stt', upload.single('audio'), createAttemptHandler(pool, { stt, scoreAttempt }));
 
-  const result = await stt(req.file.buffer, req.file.mimetype, req.body.lang || 'es');
-  const { score, words } = scoreAttempt(target, result.text);
-  res.json({ transcript: result.text, score, words });
-});
-
-// --- Tiger Data (in-memory until wired) ---
-
-app.post('/events', (req, res) => {
-  const { user_id, event_type } = req.body ?? {};
-  if (!user_id || !event_type) return res.status(400).json({ error: 'user_id and event_type are required' });
-  events.push({ ...req.body, time: new Date().toISOString() });
-  res.json({ ok: true });
-});
-
-app.post('/vocab', (req, res) => {
-  const { user_id, word } = req.body ?? {};
-  if (!user_id || !word) return res.status(400).json({ error: 'user_id and word are required' });
-  vocab.set(`${user_id}|${word}`, { ...req.body, status: 'new', saved_at: new Date().toISOString() });
-  res.json({ ok: true });
-});
-
-app.get('/vocab', (req, res) => {
-  res.json({ words: [...vocab.values()].filter((v) => v.user_id === req.query.user_id) });
-});
-
-const days = (req) => Number(req.query.days) || 14;
-
-app.get('/stats/score-trend', (req, res) => res.json(mockStats.scoreTrend(days(req))));
-app.get('/stats/activity', (req, res) => res.json(mockStats.activity(days(req))));
-app.get('/stats/trouble-words', (req, res) => res.json(mockStats.troubleWords(Number(req.query.limit) || 10)));
-app.get('/stats/heatmap', (_req, res) => res.json(mockStats.heatmap()));
-app.get('/stats/recent', (req, res) => {
-  const since = typeof req.query.since === 'string' ? req.query.since : '';
-  res.json({ events: events.filter((e) => e.user_id === req.query.user_id && e.time > since) });
-});
+// --- Tiger Data ---
+app.use(createDataRouter(pool));
 
 // Provider failures (ElevenLabs, Gemini) come back as JSON instead of an HTML error page.
 app.use((err, _req, res, _next) => {
@@ -100,4 +66,7 @@ app.use((err, _req, res, _next) => {
 });
 
 const port = Number(process.env.PORT) || 3000;
-app.listen(port, () => console.log(`backend on http://localhost:${port}`));
+const server = app.listen(port, '127.0.0.1', () => console.log(`backend on http://localhost:${port}`));
+for (const signal of ['SIGINT', 'SIGTERM']) {
+  process.once(signal, () => server.close(() => pool.end().then(() => process.exit(0))));
+}
