@@ -1,6 +1,8 @@
 import { dashboardLink, getSettings, type DashboardContext } from './settings';
+import { registerAuth } from './auth';
 const allowed = new Set(['/health', '/align', '/explain', '/tts', '/stt', '/vocab', '/events']);
 
+registerAuth();
 chrome.runtime.onMessage.addListener((message, sender, reply) => {
   if (message?.type !== 'api') return;
   if (sender.id !== chrome.runtime.id || !sender.url?.startsWith('https://www.youtube.com/') || !allowed.has(message.path)) {
