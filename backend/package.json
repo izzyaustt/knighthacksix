@@ -7,7 +7,8 @@
     "dev": "node --watch server.mjs",
     "start": "node server.mjs",
     "typecheck": "tsc",
-    "test:db": "node --test test/database.test.mjs"
+    "test:db": "node --test test/database.test.mjs",
+    "test:extension": "node --test test/extension-api.test.mjs"
   },
   "engines": {
     "node": ">=22.18.0"
