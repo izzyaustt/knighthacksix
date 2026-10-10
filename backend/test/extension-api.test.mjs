@@ -20,6 +20,8 @@ test('mock extension API accepts captions/explanations and rejects invalid reque
       await new Promise(resolve => setTimeout(resolve, 50));
     }
     assert.ok(ready, `Server did not start: ${output}`);
+    const health = await (await fetch(base + '/health')).json();
+    assert.equal(health.ai.provider, 'mock');
     const post = (path, body) => fetch(base + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const result = await post('/align', { videoId: 'test', lines: [{ start: 1, end: 3, text: 'hello world' }] });
     assert.equal(result.status, 200);

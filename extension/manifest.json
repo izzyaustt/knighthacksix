@@ -2,33 +2,18 @@
   "manifest_version": 3,
   "name": "[APP NAME]",
   "version": "0.1.0",
-  "host_permissions": [
-    "https://www.youtube.com/*",
-    "http://localhost:3000/*"
-  ],
-  "content_scripts": [
-    {
-      "matches": [
-        "https://www.youtube.com/*"
-      ],
-      "js": [
-        "src/main-world.ts"
-      ],
-      "world": "MAIN",
-      "run_at": "document_start"
-    },
-    {
-      "matches": [
-        "https://www.youtube.com/*"
-      ],
-      "js": [
-        "src/content.ts"
-      ],
-      "run_at": "document_idle"
+  "action": { "default_title": "Open learning panel" },
+  "commands": {
+    "_execute_action": {
+      "suggested_key": { "default": "Alt+L" },
+      "description": "Toggle the learning panel"
     }
-  ],
-  "background": {
-    "service_worker": "src/background.ts",
-    "type": "module"
-  }
+  },
+  "background": { "service_worker": "src/background.ts", "type": "module" },
+  "permissions": ["storage"],
+  "host_permissions": ["https://www.youtube.com/*", "http://localhost/*", "http://127.0.0.1/*"],
+  "content_scripts": [
+    { "matches": ["https://www.youtube.com/*"], "js": ["src/main-world.ts"], "world": "MAIN", "run_at": "document_start" },
+    { "matches": ["https://www.youtube.com/*"], "js": ["src/content.ts"], "run_at": "document_idle" }
+  ]
 }

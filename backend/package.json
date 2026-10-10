@@ -8,7 +8,11 @@
     "start": "node server.mjs",
     "typecheck": "tsc",
     "test:db": "node --test test/database.test.mjs",
-    "test:extension": "node --test test/extension-api.test.mjs"
+    "test:extension": "node --test test/extension-api.test.mjs",
+    "start:ollama": "node start-provider.mjs ollama",
+    "start:gemini": "node start-provider.mjs gemini",
+    "test:ai": "node --test test/ai-provider.test.mjs",
+    "check:ai": "node check-ai.mjs"
   },
   "engines": {
     "node": ">=22.18.0"
