@@ -29,7 +29,7 @@ Distribute `extension/dist` for unpacked demo testing, or package it for Chrome 
 
 ## Before a public launch
 
-The current API uses a shared `demo-user` and does not authenticate requests. Add sign-in, server-side ownership checks, and rate limits before public exposure, so users cannot change each other's data or consume unrestricted AI/audio credits. CORS or Chrome host permissions are not authentication. Decide the hosting provider and production domains before deploying.
+User data routes require Google sign-in and only ever act on the signed-in user (see `backend/README.md`). Before going public, set a strong `SESSION_SECRET`, add the production dashboard origin to the web OAuth client, and add the hosted backend to the extension's host permissions. `/align`, `/explain` and `/tts` are still unauthenticated and unlimited: add sign-in and rate limits to them so nobody can spend the AI/audio credits. CORS or Chrome host permissions are not authentication. Decide the hosting provider and production domains before deploying.
 
 ## Word lookup latency
 

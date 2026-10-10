@@ -1,6 +1,6 @@
 # Test the extension one checkpoint at a time
 
-This build connects English YouTube captions to `/align`, a synchronized bilingual overlay, phrase explanations, vocabulary saves, pronunciation, and recording feedback. It uses Spanish and `demo-user`. Dashboard UI, authentication, watched-time tracking, and a dedicated extension recording window remain separate work.
+This build connects English YouTube captions to `/align`, a synchronized bilingual overlay, phrase explanations, vocabulary saves, pronunciation, and recording feedback. It uses Spanish and requires signing in with Google from the panel before saves and recordings are stored. Watched-time tracking and a dedicated extension recording window remain separate work.
 
 ## 0. Runtime and automated checks
 
@@ -76,9 +76,11 @@ curl http://localhost:3000/health/database
 Expected: `{"ok":true,"database":"connected"}`. Select a phrase and click **Save phrase**, then:
 
 ```sh
-curl 'http://localhost:3000/vocab?user_id=demo-user&lang=es'
-curl 'http://localhost:3000/stats/recent?user_id=demo-user&lang=es'
+curl -H "Authorization: Bearer $TOKEN" 'http://localhost:3000/vocab?lang=es'
+curl -H "Authorization: Bearer $TOKEN" 'http://localhost:3000/stats/recent?lang=es'
 ```
+
+Set `TOKEN` to the dashboard's signed-in session token (in DevTools: `JSON.parse(localStorage['langtube:session']).token`), signed in with the same Google account as the extension. Requests without it return 401.
 
 The phrase should appear under `words`; recent events should include `lookup` and `save`. Saving it again updates vocabulary without another first-save event. If connectivity fails, check `.env`, the trusted certificate path, and schema setup in `backend/db/README.md`. Keep TLS verification enabled.
 
@@ -96,9 +98,9 @@ Select a short phrase and click **Listen**, then **Slow**. Expect audible Spanis
 6. Verify stored feedback:
 
 ```sh
-curl 'http://localhost:3000/stats/recent?user_id=demo-user&lang=es'
-curl 'http://localhost:3000/stats/score-trend?user_id=demo-user&lang=es&days=7'
-curl 'http://localhost:3000/stats/trouble-words?user_id=demo-user&lang=es'
+curl -H "Authorization: Bearer $TOKEN" 'http://localhost:3000/stats/recent?lang=es'
+curl -H "Authorization: Bearer $TOKEN" 'http://localhost:3000/stats/score-trend?lang=es&days=7'
+curl -H "Authorization: Bearer $TOKEN" 'http://localhost:3000/stats/trouble-words?lang=es'
 ```
 
 Recent events and score trend should contain the attempt. Trouble words appear for missed/substituted words; a correct attempt may add none. Scores measure transcription matching, not phonetic accuracy.

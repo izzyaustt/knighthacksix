@@ -35,8 +35,10 @@ function number(value, name, max = Number.MAX_SAFE_INTEGER) {
   if (typeof value !== 'number' || !Number.isFinite(value) || value < 0 || value > max) throw bad(`${name} is out of range`);
   return value;
 }
-function identity(query) {
-  return [text(query.user_id, 'user_id'), text(query.lang, 'lang', 'es', 20)];
+// The user always comes from the verified session (requireUser), never from the request body or query.
+function identity(req, input) {
+  if (typeof req.userId !== 'string' || !req.userId) throw bad('sign in required', 401);
+  return [req.userId, text(input.lang, 'lang', 'es', 20)];
 }
 function numericRows(rows, fields) {
   return rows.map(row => Object.fromEntries(Object.entries(row).map(([key, value]) =>
@@ -51,7 +53,7 @@ export function databaseErrors(error, _req, res, _next) {
   res.status(503).json({ error: 'Database temporarily unavailable' });
 }
 
-export function createDataRouter(pool) {
+export function createDataRouter(pool, requireUser) {
   const router = Router();
 
   router.get('/health/database', async (_req, res) => {
@@ -59,9 +61,9 @@ export function createDataRouter(pool) {
     res.json({ ok: true, database: 'connected' });
   });
 
-  router.post('/events', async (req, res) => {
+  router.post('/events', requireUser, async (req, res) => {
     const body = req.body ?? {};
-    const [user, lang] = identity(body);
+    const [user, lang] = identity(req, body);
     const type = text(body.event_type, 'event_type');
     if (!['lookup', 'save', 'review', 'caption_view'].includes(type)) throw bad('Use /stt for shadow_attempt; unsupported event_type');
     const eventId = id(body.event_id, 'event_id');
@@ -92,9 +94,9 @@ export function createDataRouter(pool) {
     res.json({ ok: true, event_id: result.event_id, time: result.time, duplicate: result.duplicate });
   });
 
-  router.post('/vocab', async (req, res) => {
+  router.post('/vocab', requireUser, async (req, res) => {
     const body = req.body ?? {};
-    const [user, lang] = identity(body);
+    const [user, lang] = identity(req, body);
     const word = text(body.word, 'word', undefined, 2000);
     const translation = optional(body.translation, 'translation', 4000);
     const video = optional(body.video_id, 'video_id');
@@ -115,15 +117,15 @@ export function createDataRouter(pool) {
     res.json({ ok: true });
   });
 
-  router.get('/vocab', async (req, res) => {
-    const [user, lang] = identity(req.query);
+  router.get('/vocab', requireUser, async (req, res) => {
+    const [user, lang] = identity(req, req.query);
     const limit = integer(req.query.limit, 'limit', 100, 1000);
     const { rows } = await pool.query('SELECT * FROM vocab WHERE user_id=$1 AND lang=$2 ORDER BY saved_at DESC,word LIMIT $3', [user, lang, limit]);
     res.json({ words: rows });
   });
 
-  router.get('/stats/score-trend', async (req, res) => {
-    const [user, lang] = identity(req.query);
+  router.get('/stats/score-trend', requireUser, async (req, res) => {
+    const [user, lang] = identity(req, req.query);
     const days = integer(req.query.days, 'days', 14, 365);
     const { rows } = await pool.query(`SELECT day::text,
       sum(avg_score*attempts)/sum(attempts) AS avg_score,sum(attempts) AS attempts,
@@ -133,8 +135,8 @@ export function createDataRouter(pool) {
     res.json({ timezone: TIMEZONE, points: numericRows(rows, ['avg_score', 'attempts']), includes_synthetic: rows.some(r => r.includes_synthetic) });
   });
 
-  router.get('/stats/activity', async (req, res) => {
-    const [user, lang] = identity(req.query);
+  router.get('/stats/activity', requireUser, async (req, res) => {
+    const [user, lang] = identity(req, req.query);
     const days = integer(req.query.days, 'days', 14, 365);
     const { rows } = await pool.query(`SELECT day::text,sum(shadow_attempts) AS shadow_attempts,
       sum(lookups) AS lookups,sum(vocab_saved) AS vocab_saved,sum(watched_minutes) AS watched_minutes,
@@ -145,8 +147,8 @@ export function createDataRouter(pool) {
     res.json({ timezone: TIMEZONE, points: points.map(p => ({ ...p, minutes: p.watched_minutes })), includes_synthetic: rows.some(r => r.includes_synthetic) });
   });
 
-  router.get('/stats/recent', async (req, res) => {
-    const [user, lang] = identity(req.query);
+  router.get('/stats/recent', requireUser, async (req, res) => {
+    const [user, lang] = identity(req, req.query);
     const limit = integer(req.query.limit, 'limit', 50, 1000);
     if (req.query.cursor !== undefined) throw bad('Cursor pagination is not implemented; poll a recent snapshot');
     let since = null;
@@ -161,8 +163,8 @@ export function createDataRouter(pool) {
     res.json({ events: rows, includes_synthetic: rows.some(r => r.is_synthetic) });
   });
 
-  router.get('/stats/trouble-words', async (req, res) => {
-    const [user, lang] = identity(req.query);
+  router.get('/stats/trouble-words', requireUser, async (req, res) => {
+    const [user, lang] = identity(req, req.query);
     const limit = integer(req.query.limit, 'limit', 10, 100);
     const { rows } = await pool.query(`SELECT word,sum(attempts) AS attempts,sum(misses) AS misses,
       sum(misses)::float8/sum(attempts) AS miss_rate,bool_or(is_synthetic) AS includes_synthetic
@@ -171,8 +173,8 @@ export function createDataRouter(pool) {
     res.json({ words: numericRows(rows, ['attempts', 'misses', 'miss_rate']).map(r => ({ ...r, avg_score: 1-r.miss_rate })) });
   });
 
-  router.get('/stats/heatmap', async (req, res) => {
-    const [user, lang] = identity(req.query);
+  router.get('/stats/heatmap', requireUser, async (req, res) => {
+    const [user, lang] = identity(req, req.query);
     const days = integer(req.query.days, 'days', 28, 365);
     const { rows } = await pool.query(`SELECT extract(dow FROM time AT TIME ZONE $4)::int AS dow,
       extract(hour FROM time AT TIME ZONE $4)::int AS hour,count(*) AS count,
@@ -197,7 +199,7 @@ export function createAttemptHandler(pool, { stt, scoreAttempt }) {
       const body = req.body ?? {};
       if (!req.file?.buffer?.length) throw bad('audio file is required');
       const target = text(body.target_text, 'target_text', undefined, 10000);
-      user = text(body.user_id, 'user_id', 'demo-user');
+      [user] = identity(req, body);
       const lang = text(body.lang, 'lang', 'es', 20);
       const video = optional(body.video_id, 'video_id');
       const videoTs = body.video_ts === undefined ? null : number(Number(body.video_ts), 'video_ts');

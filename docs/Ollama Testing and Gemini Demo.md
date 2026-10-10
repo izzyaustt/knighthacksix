@@ -116,7 +116,7 @@ Translation and explanation caches include provider and model, so Gemini does no
 
 - Verify Gemini on the actual demo laptop/network well before presenting; a local model test cannot prove Gemini credentials/model/quota work.
 - Test your chosen short video, one phrase explanation, Listen/Slow, and a microphone attempt. Audio is still ElevenLabs, and microphone permissions must be allowed.
-- Confirm `/health/database` returns connected and your attempt appears in `/stats/recent?user_id=demo-user`.
+- Confirm `/health/database` returns connected, sign in to the extension and dashboard with the demo Google account, and check that your attempt appears on the dashboard.
 - Keep the backend terminal open and make sure `/health` reports Gemini.
 - Rehearse on the same video; successful translations are cached for repeat viewing.
 

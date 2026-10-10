@@ -1,10 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
+import { BACKEND_URL, getSession, signOut } from './auth.ts';
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
-
-// The extension opens the dashboard with ?user_id=...; default to the shared demo user.
-const params = new URLSearchParams(location.search);
-export const USER_ID = params.get('user_id') || 'demo-user';
 export const LANG = 'es';
 
 // --- Response shapes (see backend/README.md) ---
@@ -39,10 +35,16 @@ export type RecentEvent = {
 
 async function get<T>(path: string, query: Record<string, string | number>, signal: AbortSignal): Promise<T> {
   const url = new URL(path, BACKEND_URL);
-  for (const [key, value] of Object.entries({ user_id: USER_ID, lang: LANG, ...query })) {
+  for (const [key, value] of Object.entries({ lang: LANG, ...query })) {
     url.searchParams.set(key, String(value));
   }
-  const response = await fetch(url, { signal });
+  // The backend knows the user from the session token; there is no user_id parameter.
+  const session = getSession();
+  const response = await fetch(url, { signal, headers: session ? { Authorization: `Bearer ${session.token}` } : {} });
+  if (response.status === 401) {
+    signOut();
+    throw new Error('Signed out');
+  }
   if (!response.ok) throw new Error(`${path} returned ${response.status}`);
   return response.json() as Promise<T>;
 }

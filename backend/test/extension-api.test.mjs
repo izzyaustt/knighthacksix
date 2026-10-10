@@ -2,11 +2,12 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
+import jwt from 'jsonwebtoken';
 
 test('mock extension API accepts captions/explanations and rejects invalid requests', async () => {
   const server = spawn(process.execPath, ['server.mjs'], {
     cwd: new URL('../', import.meta.url),
-    env: { ...process.env, MOCK: '1', PORT: '3097' }, stdio: ['ignore', 'pipe', 'pipe'],
+    env: { ...process.env, MOCK: '1', PORT: '3097', SESSION_SECRET: 'test-secret' }, stdio: ['ignore', 'pipe', 'pipe'],
   });
   let output = '';
   server.stdout.on('data', b => { output += b; });
@@ -53,6 +54,17 @@ test('mock extension API accepts captions/explanations and rejects invalid reque
     assert.equal((await post('/explain', { phrase: 'word', detail: 'invalid' })).status, 400);
     assert.equal((await post('/explain', { phrase: '' })).status, 400);
     assert.equal((await post('/explain', { phrase: 'hola', lang: 'fr' })).status, 400);
+
+    // User data routes require a session token; a user_id in the request is not enough.
+    assert.equal((await fetch(base + '/stats/recent?user_id=demo-user')).status, 401);
+    assert.equal((await post('/events', { user_id: 'demo-user', event_type: 'lookup' })).status, 401);
+    assert.equal((await fetch(base + '/stt', { method: 'POST' })).status, 401);
+    const forged = jwt.sign({ uid: 'demo-user' }, 'wrong-secret');
+    assert.equal((await fetch(base + '/vocab', { headers: { Authorization: `Bearer ${forged}` } })).status, 401);
+    const token = jwt.sign({ uid: 'test-user', email: 'test@example.com' }, 'test-secret');
+    const me = await fetch(base + '/auth/me', { headers: { Authorization: `Bearer ${token}` } });
+    assert.deepEqual(await me.json(), { id: 'test-user', email: 'test@example.com' });
+    assert.equal((await post('/auth/google', {})).status, 401);
   } finally {
     server.kill('SIGTERM');
     if (server.exitCode === null) await once(server, 'exit');

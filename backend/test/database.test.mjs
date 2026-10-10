@@ -35,12 +35,14 @@ test('HTTP routes persist attempts, deduplicate retries, and feed dashboard stat
         },
       }),
     };
+    // Stands in for requireUser: the session user is the fixture user unless a test overrides it.
+    const signedIn = (req, _res, next) => { req.userId = req.get('x-test-user') ?? user; next(); };
     const app = express();
     app.use(express.json());
-    app.post('/stt', multer({ storage: multer.memoryStorage() }).single('audio'), createAttemptHandler(adapter, {
+    app.post('/stt', signedIn, multer({ storage: multer.memoryStorage() }).single('audio'), createAttemptHandler(adapter, {
       stt: async () => { providerCalls++; return { text: 'hola' }; }, scoreAttempt,
     }));
-    app.use(createDataRouter(adapter));
+    app.use(createDataRouter(adapter, signedIn));
     server = app.listen(0, '127.0.0.1');
     await once(server, 'listening');
     const base = `http://127.0.0.1:${server.address().port}`;
@@ -49,20 +51,19 @@ test('HTTP routes persist attempts, deduplicate retries, and feed dashboard stat
       return { status: response.status, body: await response.json() };
     }
     const post = (path, body) => request(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
-    const query = `?user_id=${encodeURIComponent(user)}&lang=es`;
+    const query = '?lang=es';
     assert.equal((await request('/health/database')).status, 200);
-    assert.equal((await request('/stats/activity')).status, 400);
     assert.equal((await request('/stats/activity' + query + '&days=-1')).status, 400);
     assert.equal((await request('/stats/recent' + query + '&since=invalid')).status, 400);
     assert.equal((await request('/stats/recent' + query + '&cursor=unsupported')).status, 400);
-    const event = { user_id: user, event_id: randomUUID(), event_type: 'lookup', word: 'hola', lang: 'es' };
+    const event = { event_id: randomUUID(), event_type: 'lookup', word: 'hola', lang: 'es' };
     assert.equal((await post('/events', event)).status, 200);
     assert.equal((await post('/events', event)).body.duplicate, true);
     assert.equal((await post('/events', { ...event, word: 'adios' })).status, 409);
-    assert.equal((await post('/events', { user_id: user, event_type: 'shadow_attempt' })).status, 400);
-    assert.equal((await post('/events', { user_id: user, event_type: 'caption_view', meta: { watched_seconds: 'invalid' } })).status, 400);
-    assert.equal((await post('/events', { user_id: user, event_type: 'caption_view', meta: { watched_seconds: 120 } })).status, 200);
-    const saved = { user_id: user, word: 'hola', translation: 'hello', lang: 'es' };
+    assert.equal((await post('/events', { event_type: 'shadow_attempt' })).status, 400);
+    assert.equal((await post('/events', { event_type: 'caption_view', meta: { watched_seconds: 'invalid' } })).status, 400);
+    assert.equal((await post('/events', { event_type: 'caption_view', meta: { watched_seconds: 120 } })).status, 200);
+    const saved = { word: 'hola', translation: 'hello', lang: 'es' };
     assert.equal((await post('/vocab', saved)).status, 200);
     assert.equal((await post('/vocab', saved)).status, 200);
     assert.equal((await request('/vocab' + query)).body.words.length, 1);
@@ -72,7 +73,6 @@ test('HTTP routes persist attempts, deduplicate retries, and feed dashboard stat
       const form = new FormData();
       form.append('audio', new Blob(['test recording'], { type: 'audio/webm' }), 'attempt.webm');
       form.append('target_text', target);
-      form.append('user_id', user);
       form.append('attempt_id', attemptId);
       return request('/stt', { method: 'POST', body: form });
     }
@@ -100,7 +100,9 @@ test('HTTP routes persist attempts, deduplicate retries, and feed dashboard stat
     const heatmap = (await request('/stats/heatmap' + query)).body.cells;
     assert.equal(heatmap.length, 168);
     assert.equal(heatmap.reduce((sum, cell) => sum + cell.count, 0), 4);
-    assert.deepEqual((await request('/stats/recent?user_id=unrelated-user')).body.events, []);
+    assert.deepEqual((await request('/stats/recent', { headers: { 'x-test-user': 'unrelated-user' } })).body.events, []);
+    // A user_id in the request is ignored; only the session user counts.
+    assert.deepEqual((await request(`/stats/recent?user_id=${encodeURIComponent(user)}`, { headers: { 'x-test-user': 'unrelated-user' } })).body.events, []);
   } finally {
     if (server) await new Promise((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
     await client.query('ROLLBACK');

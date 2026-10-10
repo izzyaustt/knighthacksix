@@ -9,7 +9,7 @@ npm ci
 npm start
 ```
 
-The server listens on `http://localhost:3000` by default, bound to the local computer. `PORT` overrides the port. Local demo routes have no authentication; keep this server local until access controls are implemented.
+The server listens on `http://localhost:3000` by default, bound to the local computer. `PORT` overrides the port. User data routes require Google sign-in (see [Authentication](#authentication)). `/align`, `/explain` and `/tts` are still open and have no rate limits, so keep the server local until those are protected too.
 
 ## Environment
 
@@ -18,6 +18,7 @@ Existing shell settings take priority. The server then loads `backend/.env`, fol
 - Database: `DATABASE_URL` or `TIGER_DATA_CONNECTION_STRING`.
 - Speech: `ELEVENLABS_API_KEY` and optional `ELEVENLABS_VOICE_ID`.
 - Alignment: `GEMINI_API_KEY` and optional `GEMINI_MODEL`.
+- Sign-in: `SESSION_SECRET`, `GOOGLE_EXTENSION_CLIENT_ID`, `GOOGLE_WEB_CLIENT_ID` (see [Authentication](#authentication)).
 - Local testing without Gemini quota: `LLM_PROVIDER=ollama` sends `/align` and `/explain` to a local [Ollama](https://ollama.com) model (`OLLAMA_MODEL`, default `gemma3:4b`; `OLLAMA_URL`, default `http://localhost:11434`). Install with `brew install ollama`, run `ollama serve`, then `ollama pull gemma3:4b`. Translation quality is lower than Gemini; leave `LLM_PROVIDER` unset in production. `GET /health` reports the active provider as `llm`.
 
 Database connections use TLS with certificate verification. If the service needs a custom root certificate, configure `PGSSLROOTCERT` or the connection URL's `sslrootcert` path. Credentials stay server-side and database errors do not expose connection values.
@@ -26,21 +27,32 @@ On this machine, the service's private Timescale CA is pinned in the ignored `ba
 
 Apply the existing schema before starting database-backed traffic; see [database setup](db/README.md).
 
+## Authentication
+
+`POST /auth/google` exchanges a Google credential for a 30-day session token:
+
+- The extension sends `{ accessToken }` from `chrome.identity.getAuthToken`. The backend checks that the token was issued to `GOOGLE_EXTENSION_CLIENT_ID` (the "Chrome Extension" OAuth client in `extension/manifest.json`).
+- The dashboard sends `{ idToken }` from Sign in with Google. The backend verifies it against `GOOGLE_WEB_CLIENT_ID` (a "Web application" OAuth client whose authorized JavaScript origins include the dashboard).
+
+Both require a verified Google email. The user is created or updated in `users` with their Google account ID as `user_id`, and the response is `{ token, user: { id, email, name } }`. `SESSION_SECRET` signs the token; set it to a long random value.
+
+Send `Authorization: Bearer <token>` to every route below, plus `/stt` and `GET /auth/me`. A missing, invalid or expired token returns 401. The routes always use the signed-in user; a `user_id` in the query or body is ignored, so one user cannot read or write another's data.
+
 ## Database routes
 
 | Route | Input | Result |
 | --- | --- | --- |
-| `GET /health/database` | None | Database connectivity status |
-| `POST /events` | `user_id`, `event_type`, optional `event_id`, `lang`, `word`, `video_id`, `score`, `meta` | Persisted event ID/time and duplicate flag |
-| `POST /vocab` | `user_id`, `word`, optional `lang`, `translation`, `video_id`, `video_ts` | Saved vocabulary; first save logs one event |
-| `GET /vocab` | `user_id`, optional `lang`, `limit` | Saved words |
-| `GET /stats/score-trend` | `user_id`, optional `lang`, `days` | Daily intelligibility averages and attempt counts |
+| `GET /health/database` | None (no sign-in needed) | Database connectivity status |
+| `POST /events` | `event_type`, optional `event_id`, `lang`, `word`, `video_id`, `score`, `meta` | Persisted event ID/time and duplicate flag |
+| `POST /vocab` | `word`, optional `lang`, `translation`, `video_id`, `video_ts` | Saved vocabulary; first save logs one event |
+| `GET /vocab` | Optional `lang`, `limit` | Saved words |
+| `GET /stats/score-trend` | Optional `lang`, `days` | Daily intelligibility averages and attempt counts |
 | `GET /stats/activity` | Same | Daily attempts, lookups, saves, watched minutes |
-| `GET /stats/recent` | `user_id`, optional `lang`, `limit`, `since` | Recent event snapshot with attempt feedback |
-| `GET /stats/trouble-words` | `user_id`, optional `lang`, `limit` | Per-word misses and miss rates |
-| `GET /stats/heatmap` | `user_id`, optional `lang`, `days` | 168 day/hour activity cells |
+| `GET /stats/recent` | Optional `lang`, `limit`, `since` | Recent event snapshot with attempt feedback |
+| `GET /stats/trouble-words` | Optional `lang`, `limit` | Per-word misses and miss rates |
+| `GET /stats/heatmap` | Optional `lang`, `days` | 168 day/hour activity cells |
 
-Use `demo-user` initially. Other user IDs must already exist in `users`. Language defaults to `es`. Statistics group days in `America/New_York`. Numeric counts are JSON numbers. Empty history returns empty points, rather than fake scores; heatmap cells are zero-filled.
+All routes act on the signed-in user. Language defaults to `es`. Statistics group days in `America/New_York`. Numeric counts are JSON numbers. Empty history returns empty points, rather than fake scores; heatmap cells are zero-filled.
 
 `/events` accepts `lookup`, `save`, `review`, and `caption_view`. Supply a stable UUID `event_id` and the same payload when retrying; a transaction/advisory lock prevents duplicate writes across different retry timestamps. Changed data for an existing ID returns 409. Omitted IDs are generated, so clients cannot safely deduplicate a lost response without supplying their own ID.
 
@@ -48,7 +60,7 @@ For vocabulary, `/vocab` logs the first save. The extension must not also emit a
 
 ## Persisted speaking attempts
 
-`POST /stt` accepts multipart `audio` and `target_text`, plus optional `user_id`, `attempt_id`, `lang`, `video_id`, and `video_ts`. For backward compatibility, missing user/language use `demo-user`/`es`, and a missing attempt ID is generated.
+`POST /stt` accepts multipart `audio` and `target_text`, plus optional `attempt_id`, `lang`, `video_id`, and `video_ts`, and requires a session token. A missing language defaults to `es`, and a missing attempt ID is generated.
 
 Supply an `attempt_id` UUID once per recording and reuse it on retry. A completed retry returns the saved score without another speech-provider call. A currently processing attempt returns 409 with `ATTEMPT_PROCESSING` and `Retry-After`. Failed attempts can be claimed for retry; changed target/language/video context returns 409.
 
@@ -58,13 +70,13 @@ Do not submit `shadow_attempt` to `/events`; `/stt` owns this write. Raw recordi
 
 ## Quick read-only checks
 
-With the server running:
+With the server running, set `TOKEN` to the dashboard's signed-in session token (in DevTools: `JSON.parse(localStorage['langtube:session']).token`):
 
 ```sh
 curl http://localhost:3000/health/database
-curl 'http://localhost:3000/stats/recent?user_id=demo-user'
-curl 'http://localhost:3000/stats/score-trend?user_id=demo-user&days=7'
-curl 'http://localhost:3000/stats/activity?user_id=demo-user&days=7'
+curl -H "Authorization: Bearer $TOKEN" 'http://localhost:3000/stats/recent'
+curl -H "Authorization: Bearer $TOKEN" 'http://localhost:3000/stats/score-trend?days=7'
+curl -H "Authorization: Bearer $TOKEN" 'http://localhost:3000/stats/activity?days=7'
 ```
 
 The dashboard should poll a bounded `/stats/recent` snapshot every two seconds and deduplicate by `event_id`. `since` is an ISO timestamp filter, not a lossless cursor; late commits or more events than the snapshot limit can be missed. Opaque cursors are not implemented and requests containing `cursor` return 400. Refetch statistics after new events. Clearly label synthetic rows/history when `is_synthetic`/`includes_synthetic` is true.
