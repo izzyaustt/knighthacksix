@@ -14,10 +14,13 @@ $$;
 CREATE TABLE IF NOT EXISTS public.users (
   user_id TEXT PRIMARY KEY,
   display_name TEXT NOT NULL,
+  email TEXT,
   target_lang TEXT NOT NULL DEFAULT 'es',
   level TEXT NOT NULL DEFAULT 'A2',
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS email TEXT;
 
 CREATE TABLE IF NOT EXISTS public.vocab (
   user_id TEXT NOT NULL REFERENCES public.users(user_id),
