@@ -1,0 +1,8 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "installCommand": "npm ci --prefix dashboard",
+  "buildCommand": "node dashboard/check-deploy.mjs && npm run build --prefix dashboard",
+  "outputDirectory": "dashboard/dist",
+  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+}

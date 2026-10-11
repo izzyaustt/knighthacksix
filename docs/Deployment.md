@@ -4,7 +4,7 @@ The extension calls a hosted HTTPS backend; the backend calls Gemini, ElevenLabs
 
 ## Backend
 
-Use Node 24. Deploy the `backend` directory, install with `npm ci --omit=dev`, and start with `npm start`. A Dockerfile is included: build from `backend` with `docker build -t lingualense-api .`. The container uses Gemini by default. Image builds have not yet been verified here.
+Use Node 24. Keep `backend/` and `shared/` together. Install with `npm ci --prefix backend --omit=dev`, and start with `npm start --prefix backend`. Build the Docker image from the repository root with `docker build -f backend/Dockerfile -t langtube-api .`. The container uses Gemini by default. Image builds have not yet been verified here.
 
 Set server-side environment variables in the hosting service:
 
@@ -25,7 +25,7 @@ VITE_BACKEND_URL=https://api.example.com VITE_DASHBOARD_URL=https://app.example.
 
 Replace both example URLs. The backend URL must be an HTTPS origin without a path. The build adds permission for that exact backend origin and overrides old stored localhost settings. Reload the extension and refresh YouTube. Default builds still use localhost for development.
 
-Distribute `extension/dist` for unpacked demo testing, or package it for Chrome Web Store distribution. Publishing to the store is a separate step. Dashboard hosting depends on the dashboard implementation and its API configuration.
+Distribute `extension/dist` for unpacked demo testing, or package it for Chrome Web Store distribution. Publishing to the store is a separate step. Host `dashboard/dist` on Vercel and the backend on Render. Its build needs the repository root available because it imports `shared/`. See [Vercel setup](Vercel.md) and [Render backend setup](Render.md).
 
 ## Before a public launch
 

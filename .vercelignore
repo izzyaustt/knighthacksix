@@ -1,0 +1,16 @@
+.git
+.vercel
+node_modules
+**/node_modules
+dist
+**/dist
+.env
+.env.*
+**/.env
+**/.env.*
+**/*.pem
+**/*.key
+**/.cache
+backend
+extension
+docs
