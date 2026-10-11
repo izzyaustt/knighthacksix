@@ -13,6 +13,7 @@ import { scoreAttempt } from './src/scoring.ts';
 import { createPool } from './database.mjs';
 import { createDataRouter, createAttemptHandler } from './data-routes.mjs';
 import { authRoutes, requireUser } from './auth.mjs';
+import { createStudyRouter } from './study-routes.mjs';
 
 
 const app = express();
@@ -22,6 +23,7 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 
 app.use(cors());
 app.use(express.json({ limit: '2mb' }));
 app.use(authRoutes(pool));
+app.use(createStudyRouter(pool, requireUser));
 
 const CACHE_FILE = new URL('./.cache/align.json', import.meta.url);
 fs.mkdirSync(new URL('./.cache/', import.meta.url), { recursive: true });

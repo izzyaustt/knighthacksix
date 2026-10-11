@@ -1,0 +1,16 @@
+import './env.mjs';
+const { ELEVENLABS_API_KEY: apiKey, ELEVENLABS_AGENT_ID: agentId } = process.env;
+if (!apiKey || !agentId) throw Error('Set ELEVENLABS_API_KEY and ELEVENLABS_AGENT_ID first.');
+const headers = { 'xi-api-key': apiKey };
+const agentResponse = await fetch(`https://api.elevenlabs.io/v1/convai/agents/${encodeURIComponent(agentId)}`, { headers, signal: AbortSignal.timeout(15000) });
+if (!agentResponse.ok) throw Error(`Agent configuration check failed (${agentResponse.status}).`);
+const agent = await agentResponse.json();
+if (!agent.platform_settings?.auth?.enable_auth) throw Error('Enable private authentication for the study agent.');
+if (agent.conversation_config?.agent?.language !== 'es') throw Error('The study agent must use Spanish.');
+const url = new URL('https://api.elevenlabs.io/v1/convai/conversation/get-signed-url');
+url.searchParams.set('agent_id', agentId);
+const response = await fetch(url, { headers, signal: AbortSignal.timeout(15000) });
+if (!response.ok) throw Error(`Signed session check failed (${response.status}).`);
+const { signed_url } = await response.json();
+if (typeof signed_url !== 'string' || !signed_url.startsWith('wss://api.elevenlabs.io/')) throw Error('Unexpected signed conversation URL.');
+console.log('Spanish agent is private; ElevenLabs can issue a signed connection URL. No voice session started.');
