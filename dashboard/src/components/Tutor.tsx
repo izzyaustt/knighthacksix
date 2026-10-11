@@ -1,8 +1,15 @@
+import { cleanTutorText, wordTip, isReviewVocabulary } from '../../../shared/tutor-feedback.ts';
 import { LANGUAGES, type Language } from '../../../shared/languages.ts';
 import { useEffect, useRef, useState } from 'react';
 import { ConversationProvider, useConversation } from '@elevenlabs/react';
-import { studyConfig, studySession, type StudyConfig } from '../study-api.ts';
+import { studyConfig, studySession, studyReview, type StudyConfig, type StudyReview, type StudyMessage } from '../study-api.ts';
 import { prepareStudyConnection } from '../study-connection.ts';
+
+function briefFeedback(text: string, limit: number) {
+  const clean = cleanTutorText(text);
+  const words = clean.split(/\s+/u);
+  return words.length > limit ? `${words.slice(0, limit).join(' ')}…` : clean;
+}
 
 export function Tutor({ language }: { language: Language }) {
   return <ConversationProvider><ConversationPractice language={language} /></ConversationProvider>;
@@ -15,6 +22,14 @@ function ConversationPractice({ language }: { language: Language }) {
   const [error, setError] = useState('');
   const [starting, setStarting] = useState(false);
   const [ended, setEnded] = useState(false);
+  const [review, setReview] = useState<StudyReview>();
+  const [reviewing, setReviewing] = useState(false);
+  const [reviewError, setReviewError] = useState('');
+  const [reviewRetry, setReviewRetry] = useState(0);
+  const reviewId = useRef('');
+  const reviewMessages = useRef<StudyMessage[] | null>(null);
+  const latestMessages = useRef<StudyMessage[]>([]);
+  const sessionContext = useRef({ scenario, level });
   const [messages, setMessages] = useState<{ id: number; source: 'user' | 'ai'; text: string }[]>([]);
   const [remaining, setRemaining] = useState(180);
   const request = useRef<AbortController | null>(null);
@@ -39,6 +54,21 @@ function ConversationPractice({ language }: { language: Language }) {
   }, [language]);
   useEffect(() => () => { request.current?.abort(); conversation.endSession(); }, [conversation.endSession]);
   useEffect(() => { transcript.current?.scrollTo({ top: transcript.current.scrollHeight, behavior: 'smooth' }); }, [messages]);
+  useEffect(() => { latestMessages.current = messages; }, [messages]);
+  useEffect(() => {
+    if (!ended || !reviewId.current || review) return;
+    const controller = new AbortController();
+    setReviewing(true); setReviewError('');
+    // Allow the SDK's final transcript update to arrive after disconnect.
+    const timer = setTimeout(() => {
+      // A retry must use the same transcript, even if a delayed SDK event arrives.
+      reviewMessages.current ??= latestMessages.current;
+      studyReview({ review_id: reviewId.current, lang: language, ...sessionContext.current, messages: reviewMessages.current }, controller.signal)
+        .then(result => { if (!controller.signal.aborted) { setReview(result); setReviewing(false); } })
+        .catch(e => { if (!controller.signal.aborted) { setReviewError(e.message); setReviewing(false); } });
+    }, 750);
+    return () => { clearTimeout(timer); controller.abort(); };
+  }, [ended, language, reviewRetry, review]);
   useEffect(() => {
     if (!connected) return;
     const timer = setInterval(() => {
@@ -53,6 +83,9 @@ function ConversationPractice({ language }: { language: Language }) {
     if (busy) return;
     const controller = new AbortController();
     request.current?.abort(); request.current = controller;
+    reviewId.current = crypto.randomUUID(); reviewMessages.current = null; latestMessages.current = [];
+    sessionContext.current = { scenario, level };
+    setReview(undefined); setReviewError(''); setReviewing(false);
     setStarting(true); setError(''); setEnded(false); setMessages([]); setRemaining(180);
     try {
       if (!navigator.mediaDevices?.getUserMedia) throw Error('Voice practice needs a secure browser connection and microphone access.');
@@ -72,6 +105,8 @@ function ConversationPractice({ language }: { language: Language }) {
   function end() {
     request.current?.abort(); conversation.endSession(); setStarting(false); setEnded(true); deadline.current = 0;
   }
+  const grammarTips = review?.struggles.filter(word => word.kind === 'grammar' || !isReviewVocabulary(word.word, language)) ?? [];
+  const reviewWords = review?.struggles.filter(word => word.kind !== 'grammar' && isReviewVocabulary(word.word, language)) ?? [];
   const selected = config?.scenarios.find(item => item.id === scenario);
   return <section className="study-page" aria-label={`${info.name} conversation practice`}>
     <div className="study-intro">
@@ -97,13 +132,48 @@ function ConversationPractice({ language }: { language: Language }) {
         <p className="muted">{connected ? `${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, '0')} remaining` : 'A three-minute conversation, at your pace.'}</p>
         {error && <p className="banner" role="alert">{error}</p>}
         {config && !config.available && <p className="banner" role="status">Conversation practice is being set up. Please check back shortly.</p>}
-        <div className="study-controls">{!busy ? <button className="study-primary" type="button" disabled={!config?.available} onClick={start}>Start conversation</button>
+        <div className="study-controls">{!busy ? <button className="study-primary" type="button" disabled={!config?.available || reviewing} onClick={start}>Start conversation</button>
           : <><button className="study-secondary" type="button" onClick={end}>{connected ? 'End conversation' : 'Cancel'}</button>
             {connected && <button className="study-primary" type="button" aria-pressed={conversation.isMuted} onClick={() => conversation.setMuted(!conversation.isMuted)}>{conversation.isMuted ? 'Unmute microphone' : 'Mute microphone'}</button>}</>}
         </div>
-        <p className="study-privacy">Starting turns on your microphone and sends your voice to ElevenLabs. End the conversation to stop. This page clears its transcript when you start another conversation or leave Study.</p>
+        <p className="study-privacy">Starting turns on your microphone and sends your voice to ElevenLabs. After you finish, your transcript is sent for AI feedback. Your rating, review words, and relevant dialogue excerpts are saved to your account. This page clears the full transcript when you start again or leave Tutor.</p>
       </div>
     </div>
+    {ended && <section className="study-feedback" aria-label="Conversation feedback" aria-live="polite">
+      <h3>Your conversation feedback</h3>
+      {reviewing && <p role="status">Luna is reviewing your replies and finding words to practice…</p>}
+      {reviewError && <><p className="banner" role="alert">{reviewError}</p><button type="button" className="study-secondary" onClick={() => setReviewRetry(n => n + 1)}>Retry feedback</button></>}
+      {review && <>
+        {review.score !== null && <p className="study-rating"><strong>{review.score}/100</strong> · Practice rating at {sessionContext.current.level}</p>}
+        <p>{briefFeedback(review.summary, 35)}</p>
+        {review.ratings && <>
+          <div className="study-rating-grid">{Object.entries(review.ratings).map(([name, rating]) => <div key={name}><strong>{name.charAt(0).toUpperCase() + name.slice(1)} · {rating.score}/5</strong></div>)}</div>
+          <details><summary>Rating details</summary>
+            {review.summary.trim().split(/\s+/u).length > 35 && <p>{cleanTutorText(review.summary)}</p>}
+            {Object.entries(review.ratings).map(([name, rating]) => <p key={name}><strong>{name.charAt(0).toUpperCase() + name.slice(1)}:</strong> {cleanTutorText(rating.feedback)}</p>)}
+          </details>
+        </>}
+        {review.status === 'completed' && <><p className="muted">AI feedback · Pronunciation not rated</p>
+          {grammarTips.length > 0 && <><h3>Grammar tips</h3>{grammarTips.map(word => <article className="study-review-word" key={word.word}>
+            <p>{wordTip(word.word, word.better_reply, word.reason)}</p>
+            {!/[¿?？]/u.test(word.better_reply) && <p><strong>Try answering:</strong> {word.better_reply}</p>}
+          </article>)}</>}
+          <h3>Words to revisit</h3>
+          {review.vocabulary_warning && reviewWords.length > 0 && <p className="study-feedback-note" role="status">Your rating is saved. Only words with a clear practice example were added.</p>}
+          {!reviewWords.length && <p className={review.vocabulary_warning ? 'study-feedback-note' : 'muted'} role="status">{review.vocabulary_warning ? 'Your rating is saved. We couldn’t find a clear word tip this time—try another conversation.' : 'No clear vocabulary gaps this time. Keep practicing!'}</p>}
+          {reviewWords.map(word => <article className="study-review-word" key={word.word}>
+            <h4>{word.word} <span>· {word.translation}</span></h4><p>{briefFeedback(wordTip(word.word, word.better_reply, word.reason), 20)}</p>
+            {/[¿?？]/u.test(word.better_reply)
+              ? <p className="muted">An answer example wasn’t available for this word.</p>
+              : <p><strong>Try answering:</strong> {word.better_reply}</p>}
+            <details><summary>See the exchange</summary>
+              {word.reason.trim().split(/\s+/u).length > 20 && <p>{wordTip(word.word, word.better_reply, word.reason)}</p>}
+              <p><strong>Luna:</strong> {word.question}</p><p><strong>You:</strong> {word.reply}</p>
+            </details>
+            <p className="muted">Saved to vocabulary</p>
+          </article>)}</>}
+      </>}
+    </section>}
     <div className="study-transcript" ref={transcript} role="log" aria-label="Conversation transcript" aria-live="polite">
       <h3>Your conversation</h3>
       {!messages.length && <p className="muted">Your conversation will appear here. Try “{info.repeat}” to ask Luna to repeat, or “{info.slower}” to slow things down.</p>}

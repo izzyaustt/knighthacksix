@@ -252,6 +252,17 @@ button { font: inherit; }
 .study-message p { margin: 6px 0 0; line-height: 1.6; }
 @media (max-width: 850px) { .study-layout { grid-template-columns: 1fr; } }
 
+.study-feedback { margin-top: 24px; padding: 24px; background: var(--surface); border-radius: var(--radius); }
+.study-feedback p { line-height: 1.6; }
+.study-feedback-note { padding: 12px 16px; background: var(--heat-0); color: var(--ink-2); border-radius: 12px; }
+.study-feedback button { padding: 12px 18px; border-radius: 10px; font: inherit; cursor: pointer; }
+.study-rating strong { color: var(--olive-ink); font-size: 32px; }
+.study-rating-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin: 20px 0; }
+.study-rating-grid > div, .study-review-word { padding: 16px; border: 1px solid var(--line); border-radius: 12px; }
+.study-review-word { margin-top: 12px; }
+.study-review-word h4 { margin: 0; color: var(--olive-ink); font-size: 20px; }
+.study-review-word h4 span { font-weight: 400; color: var(--ink-2); }
+@media (max-width: 600px) { .study-rating-grid { grid-template-columns: 1fr; } }
 /* ---------- Flashcards (Study page) ---------- */
 
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
@@ -336,13 +347,14 @@ button { font: inherit; }
 @media (prefers-reduced-motion: reduce) { .say-it .say-it-mic[aria-pressed='true'] { animation: none; } }
 .say-it-word { margin: 0; font-size: 20px; font-weight: 800; overflow-wrap: anywhere; }
 .say-it-hint, .say-it-status { margin: 4px 0 0; font-size: 13px; color: var(--ink-2); }
-.say-it-attempt { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--line); font-size: 14px; line-height: 1.5; }
-.say-it-attempt p { margin: 6px 0; }
-.say-it-attempt-head { display: flex; justify-content: space-between; align-items: baseline; font-weight: 700; }
-.say-it-attempt-head strong { font-size: 24px; color: var(--olive-ink); }
-.say-it-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
-.say-it-chips span { padding: 3px 10px; border-radius: 999px; font-size: 13px; font-weight: 700; background: #fdecee; color: #8a2f3b; }
-.say-it-chips span[data-status='correct'] { background: #e9f0d6; color: var(--olive-ink); }
+/* Callouts: green prompts the learner to record after the word plays; red reports a failed recording or playback. */
+.say-it-status.turn, .say-it-status.error { margin-top: 14px; padding: 10px 14px; border-radius: 10px; font-size: 15px; font-weight: 800; }
+.say-it-status.turn { background: #e9f0d6; border-left: 4px solid var(--olive); color: var(--olive-ink); }
+.say-it-status.error { background: #fdecee; border-left: 4px solid #c2414f; color: #8a2f3b; }
+.say-it-attempt { font-size: 13px; }
+.say-it-result { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.say-it-result strong { font-size: 18px; }
+.say-it-attempt-foot { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 10px; }
 
 @media (max-width: 850px) {
   .study-deck { grid-template-columns: 1fr; grid-template-areas: 'drawer' 'deck' 'tutor'; grid-template-rows: auto; }
@@ -354,4 +366,16 @@ button { font: inherit; }
   .flashcard-face { height: 360px; }
   .flashcard-back { padding: 20px; }
   .flashcard-back::after { bottom: -20px; margin: 0 -20px -20px; }
+}
+
+/* Desktop: the Study page fits the window instead of scrolling; the word list scrolls in the space left
+   above the Tutor card, and the deck column scrolls only if a long attempt result outgrows a short window. */
+@media (min-width: 851px) {
+  .main:has(> .study-page > .study-deck) { height: calc(100dvh - 64px); overflow: hidden; display: flex; flex-direction: column; padding-bottom: 24px; }
+  .main:has(> .study-page > .study-deck) > .study-page { flex: 1; min-height: 0; width: 100%; display: flex; flex-direction: column; }
+  .study-page > .study-deck { flex: 1; min-height: 0; grid-template-rows: minmax(0, 1fr) auto; }
+  .study-page > .study-deck.drawer-closed { grid-template-rows: auto minmax(0, 1fr); }
+  .study-deck .vocab-drawer { max-height: none; align-self: stretch; min-height: 0; }
+  .study-deck.drawer-closed .vocab-drawer { align-self: start; }
+  .study-deck .deck-main { align-self: stretch; min-height: 0; overflow-y: auto; padding-bottom: 4px; }
 }
