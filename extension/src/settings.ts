@@ -1,4 +1,5 @@
-// Hosted builds set VITE_BACKEND_URL and VITE_DASHBOARD_URL at build time.
+// The dashboard is the Vercel deployment; set VITE_DASHBOARD_URL=http://localhost:5173 to open a local one.
+// Hosted builds set VITE_BACKEND_URL at build time.
 // These are public URLs; API keys belong only on the backend.
 
 import { isLanguage } from '../../shared/languages';
@@ -12,6 +13,7 @@ export type Settings = {
 
 export const DEFAULT_SETTINGS: Settings = {
   backendUrl: import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000',
+  dashboardUrl: import.meta.env.VITE_DASHBOARD_URL || 'https://langtube-dashboard.vercel.app',
   dashboardUrl: import.meta.env.VITE_DASHBOARD_URL || 'https://langtube-dashboard.vercel.app',
   langSrc: 'en',
   langTgt: 'es',
@@ -31,7 +33,7 @@ export async function getSettings(): Promise<Settings> {
 
 export type DashboardContext = { videoId?: string | null; t?: number; range?: string };
 
-/** Open the dashboard with video context; the dashboard signs in on its own. */
+/** e.g. https://langtube-dashboard.vercel.app/?video_id=dQw4w9WgXcQ&t=83&range=24h (the dashboard signs in on its own) */
 export function dashboardLink(s: Settings, ctx: DashboardContext): string {
   const u = new URL(s.dashboardUrl);
   if (ctx.videoId) u.searchParams.set('video_id', ctx.videoId);
