@@ -4,13 +4,11 @@ import type { Polled, VocabWord } from '../api.ts';
 import { Flashcard } from './Flashcard.tsx';
 import { SayIt } from './SayIt.tsx';
 
-export function Study({ vocab, language, onOpenTutor }: { vocab: Polled<VocabWord[]>; language: Language; onOpenTutor: () => void }) {
-  const words = vocab.data ?? [];
+export function Study({ vocab, language, focusWord, onOpenTutor }: { vocab: Polled<VocabWord[]>; language: Language; focusWord?: string | null; onOpenTutor: () => void }) {  const words = vocab.data ?? [];
   // The flashcards are the main content, so the word list starts collapsed.
   const [drawerOpen, setDrawerOpen] = useState(false);
   // The list re-polls every few seconds, so the current card is tracked by word rather than position.
-  const [current, setCurrent] = useState<string | null>(null);
-  const [flipped, setFlipped] = useState(false);
+  const [current, setCurrent] = useState<string | null>(focusWord ?? null);  const [flipped, setFlipped] = useState(false);
   const found = words.findIndex((w) => w.word === current);
   const index = found < 0 ? 0 : found;
   const word = words[index];
@@ -20,6 +18,10 @@ export function Study({ vocab, language, onOpenTutor }: { vocab: Polled<VocabWor
     setCurrent(words[(i + words.length) % words.length].word);
     setFlipped(false);
   };
+
+  useEffect(() => {
+  if (focusWord) { setCurrent(focusWord); setFlipped(false); }
+}, [focusWord]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
