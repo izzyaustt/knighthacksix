@@ -46,15 +46,21 @@ Send `Authorization: Bearer <token>` to every route below, plus `/stt` and `GET 
 | `POST /events` | `event_type`, optional `event_id`, `lang`, `word`, `video_id`, `score`, `meta` | Persisted event ID/time and duplicate flag |
 | `POST /vocab` | `word`, optional `lang`, `translation`, `video_id`, `video_ts` | Saved vocabulary; first save logs one event |
 | `GET /vocab` | Optional `lang`, `limit` | Saved words |
+| `PATCH /vocab` | `word`, `status` (`new`, `learning`, `known`), optional `lang` | Sets a saved word's status; 404 if it is not saved |
+| `GET /vocab/revisit` | Optional `lang`, `limit` | Saved words not yet known, most-missed first, with a grammar `note` once generated |
 | `GET /stats/score-trend` | Optional `lang`, `days` | Daily intelligibility averages and attempt counts |
 | `GET /stats/activity` | Same | Daily attempts, lookups, saves, watched minutes |
 | `GET /stats/recent` | Optional `lang`, `limit`, `since` | Recent event snapshot with attempt feedback |
 | `GET /stats/trouble-words` | Optional `lang`, `limit` | Per-word misses and miss rates |
 | `GET /stats/heatmap` | Optional `lang`, `days` | 168 day/hour activity cells |
+| `GET /stats/summary` | Optional `lang` | All-time immersion hours with the goal, and learning/mastered word counts |
+| `GET /stats/videos` | Optional `lang`, `limit` | Most-studied videos with `known_pct`, the share of caption words the user knows |
 
 All routes act on the signed-in user. Language defaults to `es`. Statistics group days in `America/New_York`. Numeric counts are JSON numbers. Empty history returns empty points, rather than fake scores; heatmap cells are zero-filled.
 
 `/events` accepts `lookup`, `save`, `review`, and `caption_view`. Supply a stable UUID `event_id` and the same payload when retrying; a transaction/advisory lock prevents duplicate writes across different retry timestamps. Changed data for an existing ID returns 409. Omitted IDs are generated, so clients cannot safely deduplicate a lost response without supplying their own ID.
+
+A saved phrase becomes `learning` on its first speaking attempt and `known` after 3 attempts scoring 0.9 or higher; `PATCH /vocab` overrides this. `/align` records each video's caption words in `video_words`; a word counts as known in `known_pct` unless the user looked it up or saved it and has not mastered it. `known_pct` is null until captions for that video have been translated.
 
 For vocabulary, `/vocab` logs the first save. The extension must not also emit a `/events` save for that same action. `caption_view` metadata can contain a numeric `watched_seconds`, representing actual active playback duration.
 

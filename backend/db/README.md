@@ -31,8 +31,9 @@ The schema can be reapplied to the same schema version: existing tables/indexes 
 | Table | Purpose | Key |
 | --- | --- | --- |
 | `users` | Demo learner and language/level settings | `user_id` |
-| `vocab` | Saved phrases, translations, video locations, and learning status | `(user_id, lang, word)` |
+| `vocab` | Saved phrases, translations, grammar notes, video locations, and learning status | `(user_id, lang, word)` |
 | `shadow_attempts` | Attempt request state and scoring result | `(user_id, attempt_id)` |
+| `video_words` | Distinct normalized caption words per video, shared by all users | `(video_id, lang, word)` |
 | `learning_events` | Time-series lookup, save, review, watch, and shadowing events | `(time, event_id)` |
 
 `learning_events` is a hypertable with one-day time chunks. Scores use 0-1; the UI formats percentages. `words` is a JSON array of `{word, heard, status}`. Word statuses and provider output must still be validated in the backend.

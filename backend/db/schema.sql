@@ -34,6 +34,17 @@ CREATE TABLE IF NOT EXISTS public.vocab (
   PRIMARY KEY (user_id, lang, word)
 );
 
+ALTER TABLE public.vocab ADD COLUMN IF NOT EXISTS note TEXT;
+
+-- Distinct normalized caption words per video, shared by all users.
+-- /align fills it as captions are translated; /stats/videos reads it for word coverage.
+CREATE TABLE IF NOT EXISTS public.video_words (
+  video_id TEXT NOT NULL,
+  lang TEXT NOT NULL DEFAULT 'es',
+  word TEXT NOT NULL CHECK (length(word) > 0),
+  PRIMARY KEY (video_id, lang, word)
+);
+
 -- A regular table owns global per-user attempt uniqueness and cached results.
 -- The backend atomically claims an ID before calling the speech provider.
 CREATE TABLE IF NOT EXISTS public.shadow_attempts (

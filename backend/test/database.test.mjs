@@ -5,7 +5,7 @@ import express from 'express';
 import multer from 'multer';
 import { once } from 'node:events';
 import { createPool } from '../database.mjs';
-import { createDataRouter, createAttemptHandler } from '../data-routes.mjs';
+import { createDataRouter, createAttemptHandler, saveVideoWords } from '../data-routes.mjs';
 import { scoreAttempt } from '../src/scoring.ts';
 
 test('HTTP routes persist attempts, deduplicate retries, and feed dashboard statistics', {
@@ -100,6 +100,44 @@ test('HTTP routes persist attempts, deduplicate retries, and feed dashboard stat
     const heatmap = (await request('/stats/heatmap' + query)).body.cells;
     assert.equal(heatmap.length, 168);
     assert.equal(heatmap.reduce((sum, cell) => sum + cell.count, 0), 4);
+
+    // Overview widgets: revisit list, summary, video word coverage, and mastery.
+    const patch = body => request('/vocab', { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+    const revisit = async () => (await request('/vocab/revisit' + query)).body.words;
+    const summary = async () => (await request('/stats/summary' + query)).body;
+    assert.deepEqual((await revisit()).map(w => [w.word, w.translation, w.misses]), [['hola', 'hello', 0]]);
+    assert.deepEqual((await summary()).mastery, { total: 1, learning: 1, mastered: 0 });
+    assert.equal((await summary()).immersion.hours, 2 / 60);
+    assert.equal((await summary()).immersion.goal_hours, 500);
+
+    const video = `video-${randomUUID()}`;
+    await saveVideoWords(adapter, video, 'es', [{ target: '¡Hola, mundo!' }, { target: 'Gracias, amigo. Hola.' }]);
+    assert.equal((await post('/events', { event_type: 'caption_view', video_id: video, meta: { watched_seconds: 60 } })).status, 200);
+    const coverage = async () => (await request('/stats/videos' + query)).body.videos.find(v => v.video_id === video);
+    // "hola" was looked up and saved, so 3 of the 4 caption words count as known.
+    assert.deepEqual([(await coverage()).total_words, (await coverage()).known_pct, (await coverage()).watched_minutes], [4, 0.75, 1]);
+
+    async function perfectAttempt() {
+      const form = new FormData();
+      form.append('audio', new Blob(['test recording'], { type: 'audio/webm' }), 'attempt.webm');
+      form.append('target_text', 'Hola');
+      form.append('attempt_id', randomUUID());
+      assert.equal((await request('/stt', { method: 'POST', body: form })).body.score, 1);
+      return (await request('/vocab' + query)).body.words[0].status;
+    }
+    assert.equal(await perfectAttempt(), 'learning');
+    assert.equal(await perfectAttempt(), 'learning');
+    assert.equal(await perfectAttempt(), 'known');
+    assert.deepEqual(await revisit(), []);
+    assert.deepEqual((await summary()).mastery, { total: 1, learning: 0, mastered: 1 });
+    assert.equal((await coverage()).known_pct, 1);
+
+    assert.equal((await patch({ word: 'hola', status: 'learning' })).status, 200);
+    assert.equal((await revisit()).length, 1);
+    assert.equal((await patch({ word: 'hola', status: 'mastered' })).status, 400);
+    assert.equal((await patch({ word: 'never saved', status: 'known' })).status, 404);
+    assert.deepEqual((await request('/stats/videos', { headers: { 'x-test-user': 'unrelated-user' } })).body.videos, []);
+
     assert.deepEqual((await request('/stats/recent', { headers: { 'x-test-user': 'unrelated-user' } })).body.events, []);
     // A user_id in the request is ignored; only the session user counts.
     assert.deepEqual((await request(`/stats/recent?user_id=${encodeURIComponent(user)}`, { headers: { 'x-test-user': 'unrelated-user' } })).body.events, []);

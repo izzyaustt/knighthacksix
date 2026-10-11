@@ -6,9 +6,8 @@ import { Study } from './components/Study.tsx';
 import { Card } from './components/Card.tsx';
 import { StatsActivity, HEATMAP_DAYS } from './components/StatsActivity.tsx';
 import { TopVideos } from './components/TopVideos.tsx';
-import { VocabList } from './components/VocabList.tsx';
-import { Resources } from './components/Resources.tsx';
-import { ScoreChart, SCORE_DAYS } from './components/ScoreChart.tsx';
+import { WordsToRevisit } from './components/WordsToRevisit.tsx';
+import { ImmersionHours, MasteryLevels } from './components/Progress.tsx';
 
 // Stats refresh often so extension activity shows up quickly; the video list is heavier and changes slowly.
 const STATS_INTERVAL = 5_000;
@@ -25,11 +24,16 @@ export function App({ user, language, onLanguageChange }: { user: Session['user'
     return () => window.removeEventListener('hashchange', onNavigation);
   }, []);
   const activity = usePolling(useCallback((s: AbortSignal) => api.activity(HEATMAP_DAYS, s, language), [language]), STATS_INTERVAL);
-  const scores = usePolling(useCallback((s: AbortSignal) => api.scoreTrend(Math.max(HEATMAP_DAYS, SCORE_DAYS), s, language), [language]), STATS_INTERVAL);
+  const scores = usePolling(useCallback((s: AbortSignal) => api.scoreTrend(HEATMAP_DAYS, s, language), [language]), STATS_INTERVAL);
+  const summary = usePolling(useCallback((s: AbortSignal) => api.summary(s, language), [language]), STATS_INTERVAL);
+  const revisit = usePolling(useCallback((s: AbortSignal) => api.revisit(s, language), [language]), STATS_INTERVAL);
+  const videos = usePolling(useCallback((s: AbortSignal) => api.videos(s, language), [language]), VIDEOS_INTERVAL);
+  // The Study page works from the full saved-word list.
   const vocab = usePolling(useCallback((s: AbortSignal) => api.vocab(s, language), [language]), STATS_INTERVAL);
-  const recent = usePolling(useCallback((s: AbortSignal) => api.recent(s, language), [language]), VIDEOS_INTERVAL);
 
-  const statuses: Status[] = [activity.status, scores.status, vocab.status, recent.status];
+  const statuses: Status[] = [activity.status, scores.status, summary.status, revisit.status, videos.status];
+  // Marking a word mastered changes the revisit list, the mastery counts, and video coverage.
+  const onVocabChange = () => { revisit.refresh(); summary.refresh(); videos.refresh(); vocab.refresh(); };
   const offline = statuses.some((s) => s === 'error' || s === 'stale');
 
   return (
@@ -43,8 +47,7 @@ export function App({ user, language, onLanguageChange }: { user: Session['user'
           <select className="language-select" aria-label="Learning language" value={language} onChange={event => { if (isLanguage(event.target.value)) onLanguageChange(event.target.value); }}>
             {Object.entries(LANGUAGES).map(([code, info]) => <option key={code} value={code}>{info.name}</option>)}
           </select>
-          <span className="account-email" title={user.name ?? undefined}>{user.email}</span>
-          <button className="avatar" type="button" onClick={signOut} title="Sign out" aria-label={`Sign out ${user.email}`}>
+          <button className="avatar" type="button" onClick={signOut} title={`Sign out ${user.email}`} aria-label={`Sign out ${user.email}`}>
             <SignOutIcon />
           </button>
         </div>
@@ -57,7 +60,7 @@ export function App({ user, language, onLanguageChange }: { user: Session['user'
       </nav>
 
       <main className="main">
-        {page === 'tutor' ? <Suspense fallback={<p role="status">Loading your tutor…</p>}><Tutor language={language} /></Suspense> : page === 'study' ? <Study language={language} onOpenTutor={() => { window.location.hash = 'study/tutor'; }} /> : <>
+        {page === 'tutor' ? <Suspense fallback={<p role="status">Loading your tutor…</p>}><Tutor language={language} /></Suspense> : page === 'study' ? <Study vocab={vocab} language={language} onOpenTutor={() => { window.location.hash = 'study/tutor'; }} /> : <>
         {offline && (
           <p className="banner" role="status">
             Can't reach the backend, so some numbers may be out of date. Start it from <code>backend/</code> with{' '}
@@ -66,24 +69,18 @@ export function App({ user, language, onLanguageChange }: { user: Session['user'
         )}
 
         <div className="grid">
-          <StatsActivity className="span-8" activity={activity} scores={scores} vocab={vocab} />
-          <Card className="span-4" title="Top Study Videos" status={recent.status}>
-            <TopVideos events={recent.data} />
+          <StatsActivity className="span-7" activity={activity} scores={scores} summary={summary} />
+          <Card className="span-5" title="Top Study Videos" status={videos.status}>
+            <TopVideos videos={videos.data} />
           </Card>
 
-          <Card className="span-8" title="Vocab Lists" status={vocab.status}>
-            <VocabList words={vocab.data} language={language} />
+          <Card className="span-5" title="Words To Revisit" status={revisit.status}>
+            <WordsToRevisit words={revisit.data} language={language} onChange={onVocabChange} />
           </Card>
-          <Card className="span-4" title="User Leaderboard">
-            <p className="empty">Leaderboards are coming once accounts are added.</p>
-          </Card>
-
-          <Card className="span-5" title="More Resources">
-            <Resources language={language} />
-          </Card>
-          <Card className="span-7" title="Intelligibility Score" status={scores.status}>
-            <ScoreChart points={scores.data} />
-          </Card>
+          <div className="span-7 olive-stack">
+            <ImmersionHours summary={summary} />
+            <MasteryLevels summary={summary} />
+          </div>
         </div>
         </>}
       </main>

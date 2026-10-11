@@ -1,5 +1,5 @@
 import type { Language } from '../../shared/languages.ts';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BACKEND_URL, getSession, signOut } from './auth.ts';
 
 export const LANG = 'es';
@@ -17,37 +17,59 @@ export type ActivityDay = {
 
 export type ScoreDay = { day: string; avg_score: number; attempts: number; includes_synthetic: boolean };
 
+export type VocabStatus = 'new' | 'learning' | 'known';
+
 export type VocabWord = {
   word: string;
   translation: string | null;
   video_id: string | null;
   video_ts: number | null;
-  status: 'new' | 'learning' | 'known';
+  status: VocabStatus;
   saved_at: string;
 };
 
-export type RecentEvent = {
-  time: string;
-  event_id: string;
-  event_type: string;
+export type RevisitWord = {
+  word: string;
+  translation: string | null;
+  note: string | null; // grammar note; the backend fills it in shortly after the word first appears
+  status: VocabStatus;
   video_id: string | null;
   video_ts: number | null;
+  misses: number;
 };
 
-async function get<T>(path: string, query: Record<string, string | number>, signal: AbortSignal): Promise<T> {
-  const url = new URL(path, BACKEND_URL);
-  for (const [key, value] of Object.entries({ lang: LANG, ...query })) {
-    url.searchParams.set(key, String(value));
-  }
-  // The backend knows the user from the session token; there is no user_id parameter.
+export type VideoStat = {
+  video_id: string;
+  events: number;
+  last_time: string;
+  watched_minutes: number;
+  total_words: number;
+  known_pct: number | null; // 0-1; null until the video's captions have been translated
+};
+
+export type Summary = {
+  immersion: { hours: number; goal_hours: number };
+  mastery: { total: number; learning: number; mastered: number };
+};
+
+// The backend knows the user from the session token; there is no user_id parameter.
+async function request<T>(url: URL, init: RequestInit): Promise<T> {
   const session = getSession();
-  const response = await fetch(url, { signal, headers: session ? { Authorization: `Bearer ${session.token}` } : {} });
+  const response = await fetch(url, { ...init, headers: { ...init.headers, ...(session ? { Authorization: `Bearer ${session.token}` } : {}) } });
   if (response.status === 401) {
     signOut();
     throw new Error('Signed out');
   }
-  if (!response.ok) throw new Error(`${path} returned ${response.status}`);
+  if (!response.ok) throw new Error(`${url.pathname} returned ${response.status}`);
   return response.json() as Promise<T>;
+}
+
+function get<T>(path: string, query: Record<string, string | number>, signal: AbortSignal): Promise<T> {
+  const url = new URL(path, BACKEND_URL);
+  for (const [key, value] of Object.entries({ lang: LANG, ...query })) {
+    url.searchParams.set(key, String(value));
+  }
+  return request<T>(url, { signal });
 }
 
 export const api = {
@@ -55,24 +77,36 @@ export const api = {
     get<{ points: ActivityDay[] }>('/stats/activity', { days, lang }, signal).then((r) => r.points),
   scoreTrend: (days: number, signal: AbortSignal, lang: Language = 'es') =>
     get<{ points: ScoreDay[] }>('/stats/score-trend', { days, lang }, signal).then((r) => r.points),
+  summary: (signal: AbortSignal, lang: Language = 'es') => get<Summary>('/stats/summary', { lang }, signal),
+  videos: (signal: AbortSignal, lang: Language = 'es') =>
+    get<{ videos: VideoStat[] }>('/stats/videos', { limit: 2, lang }, signal).then((r) => r.videos),
+  revisit: (signal: AbortSignal, lang: Language = 'es') =>
+    get<{ words: RevisitWord[] }>('/vocab/revisit', { limit: 3, lang }, signal).then((r) => r.words),
   vocab: (signal: AbortSignal, lang: Language = 'es') => get<{ words: VocabWord[] }>('/vocab', { limit: 200, lang }, signal).then((r) => r.words),
-  recent: (signal: AbortSignal, lang: Language = 'es') =>
-    get<{ events: RecentEvent[] }>('/stats/recent', { limit: 1000, lang }, signal).then((r) => r.events),
+  setVocabStatus: (word: string, status: VocabStatus, lang: Language = 'es') =>
+    request<{ ok: true }>(new URL('/vocab', BACKEND_URL), {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ lang, word, status }),
+    }),
 };
 
 // --- Polling ---
 
 export type Status = 'loading' | 'ok' | 'stale' | 'error';
-export type Polled<T> = { data: T | undefined; status: Status };
+export type Polled<T> = { data: T | undefined; status: Status; refresh: () => void };
 
 /**
  * Calls `load` every `intervalMs`, never overlapping requests, and pauses while the tab is hidden.
  * Keeps the last good data on failure: status is 'stale' when old data is shown, 'error' when there is none.
+ * `refresh` reloads right away, for use after a change made from this page.
  */
 export function usePolling<T>(load: (signal: AbortSignal) => Promise<T>, intervalMs: number): Polled<T> {
-  const [state, setState] = useState<Polled<T>>({ data: undefined, status: 'loading' });
+  const [state, setState] = useState<Omit<Polled<T>, 'refresh'>>({ data: undefined, status: 'loading' });
   const loadRef = useRef(load);
   loadRef.current = load;
+  const restartRef = useRef(() => {});
+  const refresh = useCallback(() => restartRef.current(), []);
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -92,11 +126,14 @@ export function usePolling<T>(load: (signal: AbortSignal) => Promise<T>, interva
       if (!stopped) timer = setTimeout(tick, intervalMs);
     };
 
-    const onVisibility = () => {
-      if (document.hidden) return;
+    const restart = () => {
       clearTimeout(timer);
       controller?.abort();
       tick();
+    };
+    restartRef.current = restart;
+    const onVisibility = () => {
+      if (!document.hidden) restart();
     };
 
     tick();
@@ -109,5 +146,5 @@ export function usePolling<T>(load: (signal: AbortSignal) => Promise<T>, interva
     };
   }, [intervalMs]);
 
-  return state;
+  return useMemo(() => ({ ...state, refresh }), [state, refresh]);
 }
