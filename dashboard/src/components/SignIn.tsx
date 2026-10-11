@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { signIn } from '../auth.ts';
+import { SignInFlowers } from './SignInFlowers.tsx';
 
 const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 const GSI_SRC = 'https://accounts.google.com/gsi/client';
@@ -53,6 +54,7 @@ export function SignIn() {
 
   return (
     <main className="signin">
+      <SignInFlowers />
       <div className="signin-card">
         <img src="/logo.png" alt="langtube" className="signin-logo" />
         <h1>Your learning dashboard</h1>
@@ -60,6 +62,7 @@ export function SignIn() {
         <div ref={button} className="signin-button" aria-busy={busy} />
         {busy && <p className="muted">Signing in…</p>}
         {error && <p className="banner" role="alert">{error}</p>}
+        <p className="signin-note">A little learning, every day.</p>
       </div>
     </main>
   );

@@ -57,7 +57,7 @@ button { font: inherit; }
 
 /* ---------- Sign in ---------- */
 
-.signin { min-height: 100vh; display: grid; place-items: center; padding: 16px; background: var(--beige); }
+.signin { position: relative; isolation: isolate; overflow: hidden; min-height: 100vh; display: grid; place-items: center; padding: 16px; background: var(--beige); }
 .signin-card {
   width: 100%; max-width: 400px; display: flex; flex-direction: column; align-items: center; gap: 12px;
   padding: 32px 24px; background: var(--surface); border-radius: var(--radius); text-align: center;
@@ -67,6 +67,265 @@ button { font: inherit; }
 .signin-card .banner { margin: 0; }
 .signin-logo { height: 64px; }
 .signin-button { min-height: 44px; }
+.signin-card { position: relative; z-index: 10; }
+.signin-note { color: var(--ink-3); font-size: 12px; letter-spacing: .02em; }
+
+/* Sign-in plants: swaying corners, floating flowers and falling petals (SignInFlowers.tsx) */
+.botanical-corner {
+  position: absolute;
+  z-index: 1;
+  bottom: -65px;
+  width: clamp(245px, 26vw, 370px);
+  height: auto;
+  pointer-events: none;
+}
+
+.botanical-corner--left {
+  left: -16px;
+}
+
+.botanical-corner--right {
+  right: -16px;
+  transform: scaleX(-1);
+}
+
+.botanical-stems {
+  stroke: #6f793b;
+  stroke-width: 3;
+}
+
+.botanical-leaves {
+  fill: #88934c;
+  stroke: #69743a;
+  stroke-width: 1.2;
+}
+
+.botanical-veins {
+  stroke: rgb(244 237 221 / 52%);
+  stroke-width: 1;
+}
+
+.large-flower ellipse,
+.small-flower ellipse {
+  fill: #f0a3ad;
+  stroke: #fff5ee;
+  stroke-width: 1.4;
+}
+
+.large-flower circle,
+.small-flower circle {
+  fill: #d8a33d;
+  stroke: #fff3dc;
+  stroke-width: 1.5;
+}
+
+.floating-flower {
+  position: absolute;
+  z-index: 2;
+  width: 32px;
+  filter: drop-shadow(0 4px 5px rgb(95 91 54 / 10%));
+  opacity: 0.92;
+  pointer-events: none;
+}
+
+.floating-flower--one {
+  top: 17%;
+  left: 14%;
+  width: 27px;
+  transform: rotate(-14deg);
+}
+
+.floating-flower--two {
+  top: 20%;
+  right: 15%;
+  width: 35px;
+  transform: rotate(17deg);
+}
+
+.floating-flower--three {
+  bottom: 32%;
+  left: 25%;
+  width: 21px;
+  transform: rotate(26deg);
+}
+
+.floating-flower--four {
+  right: 27%;
+  bottom: 20%;
+  width: 23px;
+  transform: rotate(-22deg);
+}
+
+.petal-rain {
+  position: absolute;
+  z-index: 3;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.petal {
+  position: absolute;
+  top: -12%;
+  width: 12px;
+  height: 20px;
+  border-radius: 80% 12% 80% 18%;
+  background: linear-gradient(145deg, #f6c6ca, #e995a1);
+  box-shadow: inset 2px 1px 0 rgb(255 255 255 / 38%);
+  opacity: 0;
+}
+
+.petal--one {
+  left: 8%;
+  width: 10px;
+  height: 17px;
+  animation-delay: -3s;
+  animation-duration: 14s;
+}
+
+.petal--two {
+  left: 22%;
+  animation-delay: -10s;
+  animation-duration: 17s;
+}
+
+.petal--three {
+  left: 37%;
+  width: 9px;
+  height: 15px;
+  animation-delay: -6s;
+  animation-duration: 13s;
+}
+
+.petal--four {
+  left: 48%;
+  animation-delay: -14s;
+  animation-duration: 19s;
+}
+
+.petal--five {
+  left: 61%;
+  width: 11px;
+  height: 18px;
+  animation-delay: -1s;
+  animation-duration: 15s;
+}
+
+.petal--six {
+  left: 73%;
+  animation-delay: -8s;
+  animation-duration: 18s;
+}
+
+.petal--seven {
+  left: 86%;
+  width: 9px;
+  height: 16px;
+  animation-delay: -12s;
+  animation-duration: 16s;
+}
+
+.petal--eight {
+  left: 94%;
+  width: 11px;
+  height: 19px;
+  animation-delay: -5s;
+  animation-duration: 20s;
+}
+
+@media (max-width: 760px) {
+  .botanical-corner { bottom: -112px; width: 230px; opacity: 0.82; }
+  .botanical-corner--left { left: -80px; }
+  .botanical-corner--right { right: -80px; }
+  .floating-flower--one { top: 8%; left: 9%; }
+  .floating-flower--two { top: 6%; right: 8%; }
+  .floating-flower--three, .floating-flower--four { display: none; }
+  .petal--two, .petal--four, .petal--six { display: none; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .floating-flower--one,
+  .floating-flower--three {
+    animation: flower-sway 6s ease-in-out infinite;
+  }
+
+  .floating-flower--two,
+  .floating-flower--four {
+    animation: flower-sway 7s ease-in-out -2s infinite reverse;
+  }
+
+  .petal {
+    animation-name: petal-fall;
+    animation-timing-function: linear;
+    animation-iteration-count: infinite;
+  }
+
+  .botanical-corner--left {
+    animation: leaves-sway-left 8s ease-in-out infinite;
+    transform-origin: left bottom;
+  }
+
+  .botanical-corner--right {
+    animation: leaves-sway-right 9s ease-in-out -2s infinite;
+    /* Centre, not the right edge: the mirror flip would otherwise push it off-screen. */
+    transform-origin: center bottom;
+  }
+
+  @keyframes flower-sway {
+    0%,
+    100% {
+      translate: -2px 1px;
+      rotate: -3deg;
+    }
+    50% {
+      translate: 3px -6px;
+      rotate: 4deg;
+    }
+  }
+
+  @keyframes petal-fall {
+    0% {
+      opacity: 0;
+      transform: translate3d(0, -8vh, 0) rotate(0deg);
+    }
+    8% {
+      opacity: 0.76;
+    }
+    30% {
+      transform: translate3d(34px, 28vh, 0) rotate(145deg);
+    }
+    58% {
+      transform: translate3d(-25px, 61vh, 0) rotate(310deg);
+    }
+    88% {
+      opacity: 0.68;
+    }
+    100% {
+      opacity: 0;
+      transform: translate3d(25px, 116vh, 0) rotate(520deg);
+    }
+  }
+
+  @keyframes leaves-sway-left {
+    0%,
+    100% {
+      transform: rotate(-0.5deg);
+    }
+    50% {
+      transform: rotate(1.5deg);
+    }
+  }
+
+  @keyframes leaves-sway-right {
+    0%,
+    100% {
+      transform: scaleX(-1) rotate(-0.5deg);
+    }
+    50% {
+      transform: scaleX(-1) rotate(1.5deg);
+    }
+  }
+}
 
 .sidebar { background: var(--surface); padding-top: 12px; border-right: 1px solid var(--line); }
 .nav-item {
