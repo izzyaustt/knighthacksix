@@ -76,10 +76,10 @@ chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
       post('/vocab', msg.item).then(reply);
       return true;
     case 'll:vocab-delete':
-      request('DELETE', `/vocab?lang=es&word=${encodeURIComponent(msg.word)}`).then(reply);
+      getSettings().then(settings => request('DELETE', `/vocab?lang=${encodeURIComponent(msg.lang ?? settings.langTgt)}&word=${encodeURIComponent(msg.word)}`)).then(reply);
       return true;
     case 'll:vocab-list':
-      request('GET', '/vocab?lang=es&limit=1000').then(reply);
+      getSettings().then(settings => request('GET', `/vocab?lang=${encodeURIComponent(msg.lang ?? settings.langTgt)}&limit=1000`)).then(reply);
       return true;
     case 'll:open-dashboard':
       openDashboard(msg.ctx ?? {}).then(() => reply({ ok: true }));

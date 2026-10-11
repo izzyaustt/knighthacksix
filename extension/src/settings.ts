@@ -1,6 +1,7 @@
 // Hosted builds set VITE_BACKEND_URL and VITE_DASHBOARD_URL at build time.
 // These are public URLs; API keys belong only on the backend.
 
+import { isLanguage } from '../../shared/languages';
 export type Settings = {
   backendUrl: string;   // '' = no backend yet: events and saves stay local
   dashboardUrl: string;
@@ -20,6 +21,7 @@ export const DEFAULT_SETTINGS: Settings = {
 export async function getSettings(): Promise<Settings> {
   const got = (await chrome.storage.local.get('settings')) as { settings?: Partial<Settings> };
   return { ...DEFAULT_SETTINGS, ...got.settings,
+    langTgt: isLanguage(got.settings?.langTgt) ? got.settings.langTgt : 'es',
     ...(import.meta.env.VITE_BACKEND_URL ? { backendUrl: DEFAULT_SETTINGS.backendUrl } : {}),
     ...(import.meta.env.VITE_DASHBOARD_URL ? { dashboardUrl: DEFAULT_SETTINGS.dashboardUrl } : {}),
   };

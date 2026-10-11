@@ -80,11 +80,11 @@ export function renderLine(root: HTMLElement, line: AlignedLine | null) {
   root.hidden = false;
 }
 
-export function renderBuffering(root: HTMLElement, waiting: boolean) {
+export function renderBuffering(root: HTMLElement, waiting: boolean, language = 'Spanish') {
   const label = root.querySelector<HTMLElement>('.ll-loading');
   if (!label) return;
   root.dataset.waiting = String(waiting);
-  label.textContent = waiting ? 'Preparing Spanish captions… Playback will resume automatically. Turn bilingual captions off to continue in English.' : '';
+  label.textContent = waiting ? `Preparing ${language} captions… Playback will resume automatically. Turn bilingual captions off to continue in English.` : '';
   label.hidden = !waiting;
   root.hidden = !waiting && !root.querySelector('.ll-tgt')?.textContent;
 }

@@ -1,4 +1,5 @@
 // Word/phrase practice, rendered into the learning panel's lookup view (see panel.ts).
+import { type Language } from '../../shared/languages';
 import type { AlignedLine, Pair } from './captions';
 import { logEvent } from './events';
 import { api, base64 } from './api';
@@ -17,14 +18,14 @@ type Explanation = { gloss: string; grammar_note?: string; why_here?: string; ex
 const gate = createPracticeGate();
 export const waitForPracticeClose = () => gate.wait();
 let view: PracticeView | null = null;
-let selected: { line: AlignedLine; phrase: string; translation: string; videoId: string } | null = null;
+let selected: { line: AlignedLine; phrase: string; translation: string; videoId: string; lang: Language } | null = null;
 let selectionVersion = 0, audio: HTMLAudioElement | null = null;
 let recorder: MediaRecorder | null = null, recordTimer: ReturnType<typeof setTimeout> | null = null;
 let recordingPending = false, playbackVersion = 0;
 let recordingStream: MediaStream | null = null, recordingUrl: string | null = null;
 // The parts of the current lookup that recording and playback update.
 let ui: { status: HTMLElement; mic: HTMLButtonElement; hint: HTMLElement; idleHint: string; attempt: HTMLElement; listen: HTMLButtonElement[] } | null = null;
-const speechCache = createSpeechCache(async (text, speed) => (await api('/tts', { text, speed })).audio);
+const speechCache = createSpeechCache(async (text, speed, lang) => (await api('/tts', { text, speed, lang })).audio);
 
 export function attachPracticeView(next: PracticeView) { view = next; }
 
@@ -72,12 +73,12 @@ export function resetPractice() {
   view?.hide();
 }
 
-export async function openPractice(line: AlignedLine, pair?: Pair, trackLookup = true, word?: { text: string; language: 'en' | 'es' }) {
+export async function openPractice(line: AlignedLine, pair?: Pair, trackLookup = true, word?: { text: string; language: 'en' | Language }, lang: Language = 'es') {
   if (!view) throw new Error('The learning panel is not ready yet.');
   gate.open();
   const epoch = ++selectionVersion;
   stopRecording(); recordingStream?.getTracks().forEach(t => t.stop()); recordingStream = null; recordingPending = false; clearAudio(); video()?.pause();
-  selected = { line, phrase: word?.text ?? pair?.tgt ?? line.target, translation: word ? '' : pair?.src ?? line.source, videoId: new URLSearchParams(location.search).get('v') ?? '' };
+  selected = { line, phrase: word?.text ?? pair?.tgt ?? line.target, translation: word ? '' : pair?.src ?? line.source, lang, videoId: new URLSearchParams(location.search).get('v') ?? '' };
   const snapshot = selected;
   const noun = pair || word ? 'word' : 'line';
   view.el.replaceChildren();
@@ -86,7 +87,7 @@ export async function openPractice(line: AlignedLine, pair?: Pair, trackLookup =
   // Word, translation, explanation, pronunciation guide.
   const hero = el('div', 'hero'), wordRow = el('div', 'word-row');
   const size = snapshot.phrase.length > 28 ? ' long' : snapshot.phrase.length > 12 ? ' medium' : '';
-  const title = el('h1', `word${size}`, snapshot.phrase); title.lang = word?.language ?? 'es';
+  const title = el('h1', `word${size}`, snapshot.phrase); title.lang = word?.language ?? lang;
   const status = el('p', 'status'); status.setAttribute('role', 'status');
   const listen = iconButton('round', 'speaker', 20, `Hear ${snapshot.phrase}`, () => speak(snapshot.phrase, 1));
   const slow = iconButton('pill-btn sm', 'speaker', 16, '', () => speak(snapshot.phrase, 0.7), 'Listen slowly');
@@ -96,12 +97,18 @@ export async function openPractice(line: AlignedLine, pair?: Pair, trackLookup =
   pron.id = 'pronunciation'; syllables.id = 'pronunciation-syllables';
   const pronHint = el('p', 'pron-hint', 'Latin American Spanish · CAPS mark stress. Short vowels: ah / eh / ee / oh / oo.');
   const updatePronunciation = (text: string | null) => {
-    if (!text) { pron.textContent = 'Pronunciation available after the Spanish translation.'; syllables.textContent = soundTips.textContent = ''; return; }
+    if (!text) { pron.textContent = 'Pronunciation available after the translation.'; syllables.textContent = soundTips.textContent = ''; return; }
+    if (lang !== 'es') {
+      pron.textContent = 'Use Listen slowly to hear the pronunciation.';
+      syllables.textContent = soundTips.textContent = '';
+      return;
+    }
     const guide = spanishPronunciation(text);
     pron.textContent = `Say it: ${guide.respelling}`;
     syllables.textContent = `Syllables: ${guide.syllables}`;
     soundTips.textContent = guide.tips.join(' ');
   };
+  pronHint.hidden = lang !== 'es';
   updatePronunciation(word?.language === 'en' ? null : snapshot.phrase);
   const heroButtons = el('div', 'hero-btns'); heroButtons.append(slow);
   hero.append(wordRow, gloss, grammar, pron, syllables, pronHint, soundTips, heroButtons, status);
@@ -112,7 +119,7 @@ export async function openPractice(line: AlignedLine, pair?: Pair, trackLookup =
   const clipLines = el('div', 'clip-lines'), tgtRow = el('div', 'clip-tgt-row');
   const highlightEs = word?.language === 'en' ? undefined : snapshot.phrase;
   const highlightEn = word?.language === 'en' ? word.text : pair?.src;
-  const tgt = marked(line.target, highlightEs, pair?.tgtStart); tgt.className = 'clip-tgt'; tgt.lang = 'es';
+  const tgt = marked(line.target, highlightEs, pair?.tgtStart); tgt.className = 'clip-tgt'; tgt.lang = lang;
   const src = marked(line.source, highlightEn, pair?.srcStart); src.className = 'clip-src';
   tgtRow.append(tgt);
   const listenLine = iconButton('round soft', 'speaker', 18, 'Hear the full line', () => speak(line.target, 1));
@@ -132,7 +139,7 @@ export async function openPractice(line: AlignedLine, pair?: Pair, trackLookup =
     if (saved) return;
     saveStatus.textContent = 'Saving…';
     try {
-      await api('/vocab', { lang: 'es', word: snapshot.phrase, translation: snapshot.translation, video_id: snapshot.videoId, video_ts: line.start });
+      await api('/vocab', { lang: snapshot.lang, word: snapshot.phrase, translation: snapshot.translation, video_id: snapshot.videoId, video_ts: line.start });
     } catch (error) { if (epoch === selectionVersion) saveStatus.textContent = `Could not save: ${error instanceof Error ? error.message : error}`; return; }
     void updateDay(d => { d.saves++; });
     if (epoch !== selectionVersion) return;
@@ -151,7 +158,7 @@ export async function openPractice(line: AlignedLine, pair?: Pair, trackLookup =
   const mic = iconButton('mic', 'mic', 30, `Record yourself saying ${snapshot.phrase}`, record);
   mic.setAttribute('aria-pressed', 'false');
   const hint = el('p', 'say-hint', idleHint); hint.setAttribute('role', 'status');
-  const sayWord = el('p', `say-word${snapshot.phrase.length > 18 ? ' long' : ''}`, snapshot.phrase); sayWord.lang = 'es';
+  const sayWord = el('p', `say-word${snapshot.phrase.length > 18 ? ' long' : ''}`, snapshot.phrase); sayWord.lang = lang;
   sayText.append(sayWord, hint); sayRow.append(mic, sayText);
   const attempt = el('div', 'attempt'); attempt.id = 'attempt'; attempt.hidden = true;
   say.append(el('h2', 'eyebrow', 'Say it'), sayRow, attempt);
@@ -162,7 +169,7 @@ export async function openPractice(line: AlignedLine, pair?: Pair, trackLookup =
   const actionButtons = [listen, slow, listenLine, save, mic];
   if (word) actionButtons.forEach(b => { b.disabled = true; });
   // Persist the click independently of the explanation provider.
-  if (trackLookup) logEvent({ event_type: 'lookup', lang: 'es', word: snapshot.phrase, video_id: snapshot.videoId });
+  if (trackLookup) logEvent({ event_type: 'lookup', lang: snapshot.lang, word: snapshot.phrase, video_id: snapshot.videoId });
 
   const showDetails = (e: Explanation) => {
     grammar.textContent = [e.gloss, e.grammar_note].filter(Boolean).join(' — ');
@@ -170,18 +177,18 @@ export async function openPractice(line: AlignedLine, pair?: Pair, trackLookup =
     example.value.textContent = e.example ?? ''; tone.value.textContent = e.formality ?? '';
   };
   try {
-    const explanation: Explanation = await api('/explain', { phrase: snapshot.phrase, source: word ? line.source : snapshot.translation, context: line.target, lang: 'es',
+    const explanation: Explanation = await api('/explain', { phrase: snapshot.phrase, source: word ? line.source : snapshot.translation, context: line.target, lang: snapshot.lang,
       ...(word ? { word_lookup: true, word_lang: word.language, detail: 'brief' } : {}) });
     if (epoch !== selectionVersion) return;
     if (!word) { showDetails(explanation); return; }
     if (typeof explanation.translation !== 'string' || !explanation.translation.trim()) throw new Error('No word translation was returned.');
     snapshot.phrase = word.language === 'en' ? explanation.translation : word.text;
     snapshot.translation = word.language === 'en' ? word.text : explanation.translation;
-    title.textContent = sayWord.textContent = snapshot.phrase; title.lang = 'es';
+    title.textContent = sayWord.textContent = snapshot.phrase; title.lang = lang;
     gloss.textContent = snapshot.translation;
     grammar.textContent = explanation.gloss;
     updatePronunciation(snapshot.phrase);
-    if (word.language === 'en') tgt.replaceWith(Object.assign(marked(line.target, snapshot.phrase), { className: 'clip-tgt', lang: 'es' }));
+    if (word.language === 'en') tgt.replaceWith(Object.assign(marked(line.target, snapshot.phrase), { className: 'clip-tgt', lang: snapshot.lang }));
     actionButtons.forEach(b => { b.disabled = false; });
     // A quick lookup skips why/example/tone; load them on request.
     details.forEach(d => { d.box.hidden = true; });
@@ -189,7 +196,7 @@ export async function openPractice(line: AlignedLine, pair?: Pair, trackLookup =
       more.disabled = true;
       more.textContent = 'Loading more detail…';
       try {
-        const detail: Explanation = await api('/explain', { phrase: snapshot.phrase, source: snapshot.translation, context: line.target, lang: 'es' });
+        const detail: Explanation = await api('/explain', { phrase: snapshot.phrase, source: snapshot.translation, context: line.target, lang: snapshot.lang });
         if (epoch !== selectionVersion) return;
         details.forEach(d => { d.box.hidden = false; });
         showDetails(detail);
@@ -225,7 +232,7 @@ async function speak(text: string, speed: number) {
   const epoch = selectionVersion, request = ++playbackVersion, status = ui.status;
   audio?.pause(); status.textContent = 'Loading pronunciation…';
   try {
-    const encoded = await speechCache.get(text, speed);
+    const encoded = await speechCache.get(text, speed, selected?.lang ?? 'es');
     if (epoch !== selectionVersion || request !== playbackVersion) return;
     audio = new Audio(`data:audio/mpeg;base64,${encoded}`);
     const playback = audio;
@@ -301,7 +308,7 @@ async function record() {
         if (!blob.size) throw new Error('No audio recorded. Try again.');
         recordingUrl = URL.createObjectURL(blob);
         const result: Attempt = await api('/stt', { audio: await base64(blob), mime: blob.type, attempt_id: crypto.randomUUID(),
-          target_text: snapshot.phrase, lang: 'es', video_id: snapshot.videoId, video_ts: snapshot.line.start });
+          target_text: snapshot.phrase, lang: snapshot.lang, video_id: snapshot.videoId, video_ts: snapshot.line.start });
         if (epoch === selectionVersion) { showAttempt(result, epoch); hint.textContent = idleHint; }
       } catch (error) { if (epoch === selectionVersion) hint.textContent = `Recording failed: ${error instanceof Error ? error.message : error}`; }
       finally { if (epoch === selectionVersion) { recordingPending = false; recordingControls('ready'); } }

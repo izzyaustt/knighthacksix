@@ -1,5 +1,6 @@
 import './env.mjs';
 import fs from 'fs';
+import { isLanguage } from '../shared/languages.ts';
 import { createHash } from 'node:crypto';
 import { aiCacheKey, getAIConfig } from './ai-provider.mjs';
 import { explainPhrase } from './explain.mjs';
@@ -13,6 +14,7 @@ import { scoreAttempt } from './src/scoring.ts';
 import { createPool } from './database.mjs';
 import { createDataRouter, createAttemptHandler } from './data-routes.mjs';
 import { authRoutes, requireUser } from './auth.mjs';
+import { createStudyRouter } from './study-routes.mjs';
 
 
 const app = express();
@@ -22,6 +24,7 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 
 app.use(cors());
 app.use(express.json({ limit: '2mb' }));
 app.use(authRoutes(pool));
+app.use(createStudyRouter(pool, requireUser));
 
 const CACHE_FILE = new URL('./.cache/align.json', import.meta.url);
 fs.mkdirSync(new URL('./.cache/', import.meta.url), { recursive: true });
@@ -33,14 +36,14 @@ app.post('/align', async (req, res) => {
   if (typeof videoId !== 'string' || !videoId.trim() || !Array.isArray(lines) || !lines.length || lines.length > 30 ||
       lines.some(l => typeof l?.text !== 'string' || !l.text.trim() || l.text.length > 2000 ||
         !Number.isFinite(l.start) || !Number.isFinite(l.end) || l.start < 0 || l.end <= l.start) ||
-      !Number.isInteger(startIndex) || startIndex < 0 || lang !== 'es' || !['easy', 'medium', 'hard'].includes(level)) {
-    return res.status(400).json({ error: 'Provide 1–30 timed caption lines, a videoId, lang=es, and a valid level/startIndex.' });
+      !Number.isInteger(startIndex) || startIndex < 0 || !isLanguage(lang) || !['easy', 'medium', 'hard'].includes(level)) {
+    return res.status(400).json({ error: 'Provide 1–30 timed caption lines, a videoId, a supported language, and a valid level/startIndex.' });
   }
 
   if (process.env.MOCK === '1') {
     return res.json({ startIndex, lines: lines.map((l) => ({
-      start: l.start, end: l.end, source: l.text, target: `[ES] ${l.text}`,
-      pairs: [{ src: l.text.split(' ')[0], tgt: '[ES]', srcStart: 0, tgtStart: 0, color: 0 }],
+      start: l.start, end: l.end, source: l.text, target: `[${lang.toUpperCase()}] ${l.text}`,
+      pairs: [{ src: l.text.split(' ')[0], tgt: `[${lang.toUpperCase()}]`, srcStart: 0, tgtStart: 0, color: 0 }],
     })) });
   }
 
@@ -48,21 +51,21 @@ app.post('/align', async (req, res) => {
   const key = `${aiCacheKey(aiConfig)}|${videoId}|${lang}|${level}|${startIndex}|${digest}`;
   if (cache.has(key)) return res.json({ startIndex, lines: cache.get(key), cached: true });
 
-  const aligned = await alignBatch(lines, { level });
+  const aligned = await alignBatch(lines, { level, lang });
   if (!aligned.every(l => typeof l.target === 'string' && l.target.trim())) return res.status(502).json({ error: 'Translation provider returned an incomplete batch. Retry the request.' });
   cache.set(key, aligned); save(); // cache only complete batches
   res.json({ startIndex, lines: aligned });
 });
 
 app.post('/explain', async (req, res) => {
-  const { phrase, source = '', context = '', lang = 'es', word_lookup = false, word_lang = 'es', detail = 'full' } = req.body ?? {};
+  const { phrase, source = '', context = '', lang = 'es', word_lookup = false, word_lang = lang, detail = 'full' } = req.body ?? {};
   if (typeof phrase !== 'string' || !phrase.trim() || phrase.length > 2000 ||
-      typeof source !== 'string' || source.length > 2000 || typeof context !== 'string' || context.length > 10000 || lang !== 'es' ||
-      typeof word_lookup !== 'boolean' || !['en', 'es'].includes(word_lang) || !['brief', 'full'].includes(detail)) {
-    return res.status(400).json({ error: 'A Spanish phrase (up to 2000 characters) is required.' });
+      typeof source !== 'string' || source.length > 2000 || typeof context !== 'string' || context.length > 10000 || !isLanguage(lang) ||
+      typeof word_lookup !== 'boolean' || !['en', lang].includes(word_lang) || !['brief', 'full'].includes(detail)) {
+    return res.status(400).json({ error: 'A phrase (up to 2000 characters) and supported language are required.' });
   }
   if (process.env.MOCK === '1') return res.json({ gloss: source || 'Mock explanation', grammar_note: 'Mock mode: no Gemini request was made.', why_here: 'Mock mode: no context explanation.', example: phrase, formality: 'Demo', pronunciation: '', ...(word_lookup ? { translation: `[mock] ${phrase}` } : {}) });
-  res.json(await explainPhrase({ phrase: phrase.trim(), source, context, word_lookup, word_lang, detail }));
+  res.json(await explainPhrase({ phrase: phrase.trim(), source, context, word_lookup, word_lang, lang, detail }));
 });
 
 app.get('/health', (_req, res) => {
@@ -73,12 +76,13 @@ app.get('/health', (_req, res) => {
 // --- ElevenLabs ---
 
 app.post('/tts', async (req, res) => {
-  const { text, speed } = req.body ?? {};
+  const { text, speed, lang = 'es' } = req.body ?? {};
+  if (!isLanguage(lang)) return res.status(400).json({ error: 'Choose a supported language.' });
   if (typeof text !== 'string' || !text.trim()) return res.status(400).json({ error: 'text is required' });
   if (text.length > 2000) return res.status(400).json({ error: 'Practice text must be 2,000 characters or fewer' });
   if (speed !== undefined && (typeof speed !== 'number' || !Number.isFinite(speed))) return res.status(400).json({ error: 'speed must be a number' });
 
-  const { audio, cached } = await cachedTts(text.trim(), Number(speed) || 1);
+  const { audio, cached } = await cachedTts(text.trim(), Number(speed) || 1, lang);
   res.set({ 'Content-Type': 'audio/mpeg', 'X-Cache': cached ? 'HIT' : 'MISS' }).send(audio);
 });
 
