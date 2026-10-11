@@ -160,4 +160,4 @@ npm run test:ai --prefix backend          # AI provider, stubbed responses
 
 ## 👩‍💻 Team
 
-Built with 💐 by Isabella, Kamilla Mamatova, Schneidine Dorelien, and Simone Chrastek.
+Built with 💐 by Isabella Austin, Kamilla Mamatova, Schneidine Dorelien, and Simone Chrastek.
