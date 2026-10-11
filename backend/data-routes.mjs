@@ -94,6 +94,16 @@ export function createDataRouter(pool, requireUser) {
     res.json({ ok: true, event_id: result.event_id, time: result.time, duplicate: result.duplicate });
   });
 
+  router.delete('/vocab', requireUser, async (req, res) => {
+     const [user, lang] = identity(req, req.query);
+     const word = text(req.query.word, 'word', undefined, 2000);
+     const { rowCount } = await pool.query(
+       'DELETE FROM vocab WHERE user_id=$1 AND lang=$2 AND lower(word)=lower($3)',
+       [user, lang, word],
+     );
+     res.json({ ok: true, removed: rowCount });
+   });
+
   router.post('/vocab', requireUser, async (req, res) => {
     const body = req.body ?? {};
     const [user, lang] = identity(req, body);

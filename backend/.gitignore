@@ -5,3 +5,4 @@ dist/
 !.env.example
 check-users.mjs
 add-email-columns.mjs
+seed-vocab.mjs
