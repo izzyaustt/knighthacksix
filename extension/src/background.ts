@@ -50,15 +50,21 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
 });
 
 chrome.action.onClicked.addListener(async (tab) => {
-  if (tab.id != null && tab.url?.startsWith('https://www.youtube.com/')) {
-    try {
-      await chrome.tabs.sendMessage(tab.id, { type: 'll:toggle-panel' });
-      return;
-    } catch {
-      // Content script not in this tab yet (tab predates install or reload). Fall through.
-    }
+  if (tab.id == null) return;
+  try {
+    // The YouTube content script owns the sidebar. Send directly rather than
+    // relying on tab.url, which Chrome may omit without broad tabs access.
+    await chrome.tabs.sendMessage(tab.id, { type: 'll:toggle-panel' });
+    await chrome.action.setBadgeText({ tabId: tab.id, text: '' });
+    await chrome.action.setTitle({ tabId: tab.id, title: 'Open learning panel' });
+  } catch {
+    // A missing/reloaded content script must never navigate to the dashboard.
+    await chrome.action.setBadgeText({ tabId: tab.id, text: '↻' });
+    await chrome.action.setTitle({
+      tabId: tab.id,
+      title: 'Open a YouTube video and refresh the page, then click to open the sidebar',
+    });
   }
-  await openDashboard({});
 });
 
 chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
@@ -68,6 +74,12 @@ chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
       return true;
     case 'll:vocab':
       post('/vocab', msg.item).then(reply);
+      return true;
+    case 'll:vocab-delete':
+      getSettings().then(settings => request('DELETE', `/vocab?lang=${encodeURIComponent(msg.lang ?? settings.langTgt)}&word=${encodeURIComponent(msg.word)}`)).then(reply);
+      return true;
+    case 'll:vocab-list':
+      getSettings().then(settings => request('GET', `/vocab?lang=${encodeURIComponent(msg.lang ?? settings.langTgt)}&limit=1000`)).then(reply);
       return true;
     case 'll:open-dashboard':
       openDashboard(msg.ctx ?? {}).then(() => reply({ ok: true }));
@@ -89,6 +101,20 @@ async function post(path: string, body: Record<string, unknown>) {
     return { ok: res.ok, status: res.status };
   } catch (err) {
     console.warn('[LL worker] POST', path, 'failed', err);
+    return { ok: false, error: String(err) };
+  }
+}
+
+async function request(method: 'GET' | 'DELETE', path: string) {
+  const s = await getSettings();
+  if (!s.backendUrl) return { ok: false, skipped: 'no backendUrl' };
+  try {
+    const res = await fetch(new URL(path, s.backendUrl), { method, headers: await authHeaders() });
+    if (res.status === 401) await clearSession();
+    const data = (res.headers.get('content-type') ?? '').includes('json') ? await res.json().catch(() => ({})) : {};
+    return { ...data, ok: res.ok, status: res.status };
+  } catch (err) {
+    console.warn('[LL worker]', method, path, 'failed', err);
     return { ok: false, error: String(err) };
   }
 }

@@ -6,6 +6,6 @@ export type AlignedLine = {
   start: number;
   end: number;
   src: string;    // English (source)
-  tgt: string;    // Spanish (target)
+  tgt: string;    // Selected learning language (target)
   pairs: Pair[];
 };

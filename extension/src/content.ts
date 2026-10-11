@@ -1,3 +1,5 @@
+import { getSettings } from './settings';
+import { isLanguage, type Language, languageName } from '../../shared/languages';
 import { api } from './api';
 import { attachPracticeView, openPractice, resetPractice, waitForPracticeClose } from './practice';
 import { alignLines } from './align';
@@ -12,6 +14,8 @@ import { startWatchTracker, type WatchTracker } from './watch';
 
 console.log('[LL content] loaded');
 
+let targetLanguage: Language = 'es';
+const settingsReady = getSettings().then(settings => { if (isLanguage(settings.langTgt)) targetLanguage = settings.langTgt; });
 let currentLines: AlignedLine[] = [];
 let currentLine: AlignedLine | null = null;
 const HIDE_STYLE_ID = 'll-hide-captions';
@@ -29,11 +33,11 @@ let captionBuffer: ReturnType<typeof createCaptionBuffer> | null = null;
 const isWatchPage = () => location.pathname === '/watch';
 const findVideo = () => document.querySelector<HTMLVideoElement>('#movie_player video.html5-main-video');
 
-function practice(line: AlignedLine, index?: number, trackLookup = true, word?: { text: string; language: 'en' | 'es' }) {
+function practice(line: AlignedLine, index?: number, trackLookup = true, word?: { text: string; language: 'en' | Language }) {
   captionBuffer?.pauseForInteraction();
   const standard = { start: line.start, end: line.end, source: line.src, target: line.tgt,
     pairs: line.pairs.map((p, i) => ({ ...p, srcStart: line.src.indexOf(p.src), tgtStart: line.tgt.indexOf(p.tgt), color: i % 3 })) };
-  void openPractice(standard, index === undefined ? undefined : standard.pairs[index], trackLookup, word);
+  void openPractice(standard, index === undefined ? undefined : standard.pairs[index], trackLookup, word, targetLanguage);
 }
 
 const panel = createPanel({
@@ -55,7 +59,8 @@ chrome.runtime.onMessage.addListener((msg) => {
   if (msg?.type === 'll:toggle-panel') panel.toggle();
 });
 
-window.addEventListener('message', (e) => {
+window.addEventListener('message', async (e) => {
+  await settingsReady;
   if (e.source !== window || e.data?.source !== 'LL') return;
   if (e.data.type === 'tracks') { console.log('[LL content] got tracks', e.data.tracks); return; }
   if (e.data.type !== 'captions') return;
@@ -84,6 +89,7 @@ document.addEventListener('yt-navigate-finish', () => {
 
 function start(videoId: string | null, lines: Line[]) {
   reset();
+  const sessionLanguage = targetLanguage;
   const video = findVideo();
   if (!video || !lines.length) { console.warn('[LL content] no video element or no lines'); return; }
   sessionVideoId = videoId;
@@ -94,7 +100,7 @@ function start(videoId: string | null, lines: Line[]) {
     const button = (event.target as Element).closest?.<HTMLElement>('[data-word]');
     if (button && currentLine?.tgt) {
       event.stopPropagation();
-      practice(currentLine, undefined, true, { text: button.dataset.word!, language: button.closest('.ll-src') ? 'en' : 'es' });
+      practice(currentLine, undefined, true, { text: button.dataset.word!, language: button.closest('.ll-src') ? 'en' : targetLanguage });
     }
   };
 
@@ -103,7 +109,7 @@ function start(videoId: string | null, lines: Line[]) {
     .sort((a, b) => a.start - b.start);
   currentLines = aligned;
   captionBuffer = createCaptionBuffer(video, () => aligned, waiting => {
-    renderBuffering(root, waiting);
+    renderBuffering(root, waiting, languageName(targetLanguage));
   });
   captionBuffer.setEnabled(captionsOn);
   stopSync = startSync(video, () => aligned, (line) => {
@@ -114,9 +120,9 @@ function start(videoId: string | null, lines: Line[]) {
   });
 
   // caption_view: once when captions load, then once per minute actually watched.
-  logEvent({ event_type: 'caption_view', video_id: videoId, lang: 'es', meta: { reason: 'loaded', lines: aligned.length } });
+  logEvent({ event_type: 'caption_view', video_id: videoId, lang: sessionLanguage, meta: { reason: 'loaded', lines: aligned.length } });
   watch = startWatchTracker(video, () =>
-    logEvent({ event_type: 'caption_view', video_id: videoId, lang: 'es', meta: { reason: 'minute', watched_seconds: 60 } }));
+    logEvent({ event_type: 'caption_view', video_id: videoId, lang: sessionLanguage, meta: { reason: 'minute', watched_seconds: 60 } }));
 
   void alignProgressively(aligned, generation);
 }
@@ -160,6 +166,15 @@ async function alignProgressively(aligned: AlignedLine[], gen: number) {
     if (aligningGeneration === gen) aligningGeneration = null;
   }
 }
+
+chrome.storage.onChanged.addListener((changes, area) => {
+  const next = (changes.settings?.newValue as { langTgt?: unknown } | undefined)?.langTgt;
+  if (area !== 'local' || !isLanguage(next) || next === targetLanguage) return;
+  targetLanguage = next;
+  const lines = currentLines.map(line => ({ start: line.start, end: line.end, text: line.src }));
+  const id = sessionVideoId;
+  if (lines.length) start(id, lines);
+});
 
 function reset() {
   generation++;

@@ -13,3 +13,12 @@ test('replays share audio; normal and slow remain separate; failed requests can 
   await assert.rejects(retry.get('hola', 1), /busy/);
   assert.equal(await retry.get('hola', 1), 'ok');
 });
+
+test('identical words keep separate audio for each learning language', async () => {
+  const calls = [];
+  const cache = createSpeechCache(async (text, speed, lang) => { calls.push(lang); return `audio-${lang}`; });
+  assert.equal(await cache.get('test', 1, 'fr'), 'audio-fr');
+  assert.equal(await cache.get('test', 1, 'fil'), 'audio-fil');
+  assert.equal(await cache.get('test', 1, 'fr'), 'audio-fr');
+  assert.deepEqual(calls, ['fr', 'fil']);
+});

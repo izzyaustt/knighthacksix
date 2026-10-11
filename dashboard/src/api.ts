@@ -1,3 +1,4 @@
+import type { Language } from '../../shared/languages.ts';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BACKEND_URL, getSession, signOut } from './auth.ts';
 
@@ -17,6 +18,15 @@ export type ActivityDay = {
 export type ScoreDay = { day: string; avg_score: number; attempts: number; includes_synthetic: boolean };
 
 export type VocabStatus = 'new' | 'learning' | 'known';
+
+export type VocabWord = {
+  word: string;
+  translation: string | null;
+  video_id: string | null;
+  video_ts: number | null;
+  status: VocabStatus;
+  saved_at: string;
+};
 
 export type RevisitWord = {
   word: string;
@@ -63,18 +73,21 @@ function get<T>(path: string, query: Record<string, string | number>, signal: Ab
 }
 
 export const api = {
-  activity: (days: number, signal: AbortSignal) =>
-    get<{ points: ActivityDay[] }>('/stats/activity', { days }, signal).then((r) => r.points),
-  scoreTrend: (days: number, signal: AbortSignal) =>
-    get<{ points: ScoreDay[] }>('/stats/score-trend', { days }, signal).then((r) => r.points),
-  summary: (signal: AbortSignal) => get<Summary>('/stats/summary', {}, signal),
-  videos: (signal: AbortSignal) => get<{ videos: VideoStat[] }>('/stats/videos', { limit: 2 }, signal).then((r) => r.videos),
-  revisit: (signal: AbortSignal) => get<{ words: RevisitWord[] }>('/vocab/revisit', { limit: 3 }, signal).then((r) => r.words),
-  setVocabStatus: (word: string, status: VocabStatus) =>
+  activity: (days: number, signal: AbortSignal, lang: Language = 'es') =>
+    get<{ points: ActivityDay[] }>('/stats/activity', { days, lang }, signal).then((r) => r.points),
+  scoreTrend: (days: number, signal: AbortSignal, lang: Language = 'es') =>
+    get<{ points: ScoreDay[] }>('/stats/score-trend', { days, lang }, signal).then((r) => r.points),
+  summary: (signal: AbortSignal, lang: Language = 'es') => get<Summary>('/stats/summary', { lang }, signal),
+  videos: (signal: AbortSignal, lang: Language = 'es') =>
+    get<{ videos: VideoStat[] }>('/stats/videos', { limit: 2, lang }, signal).then((r) => r.videos),
+  revisit: (signal: AbortSignal, lang: Language = 'es') =>
+    get<{ words: RevisitWord[] }>('/vocab/revisit', { limit: 3, lang }, signal).then((r) => r.words),
+  vocab: (signal: AbortSignal, lang: Language = 'es') => get<{ words: VocabWord[] }>('/vocab', { limit: 200, lang }, signal).then((r) => r.words),
+  setVocabStatus: (word: string, status: VocabStatus, lang: Language = 'es') =>
     request<{ ok: true }>(new URL('/vocab', BACKEND_URL), {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ lang: LANG, word, status }),
+      body: JSON.stringify({ lang, word, status }),
     }),
 };
 

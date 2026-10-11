@@ -1,5 +1,6 @@
 // Learning events and vocabulary saves. Local stats update immediately (so the panel reacts),
 // and the service worker forwards to the backend when a backend URL is configured.
+import { getSettings } from './settings';
 import { updateDay } from './stats';
 
 export type EventType = 'lookup' | 'save' | 'shadow_attempt' | 'review' | 'caption_view';
@@ -14,6 +15,7 @@ export type LearningEvent = {
 };
 
 export type VocabItem = {
+  lang?: string;
   word: string;          // target-language phrase (what the learner is learning)
   translation: string;   // source-language meaning
   video_id: string | null;
@@ -46,20 +48,45 @@ export async function getVocab(): Promise<VocabItem[]> {
   return got[VOCAB_KEY] ?? [];
 }
 
-export const sameVocab = (a: Pick<VocabItem, 'word' | 'video_id'>, b: Pick<VocabItem, 'word' | 'video_id'>) =>
-  a.word.toLowerCase() === b.word.toLowerCase() && a.video_id === b.video_id;
+export const sameVocab = (a: Pick<VocabItem, 'word' | 'video_id' | 'lang'>, b: Pick<VocabItem, 'word' | 'video_id' | 'lang'>) =>
+  (a.lang ?? 'es') === (b.lang ?? 'es') && a.word.toLowerCase() === b.word.toLowerCase() && a.video_id === b.video_id;
+
+// The database keys saved words by (user, lang, word), so a word is saved once regardless of video.
+const sameWord = (a: Pick<VocabItem, 'word' | 'lang'>, b: Pick<VocabItem, 'word' | 'lang'>) => (a.lang ?? 'es') === (b.lang ?? 'es') && a.word.toLowerCase() === b.word.toLowerCase();
 
 /** Saves the item, or removes it if already saved. Returns whether it is saved afterwards. */
 export async function toggleVocab(item: Omit<VocabItem, 'saved_at'>): Promise<boolean> {
+  item = { ...item, lang: item.lang ?? (await getSettings()).langTgt };
   const list = await getVocab();
-  if (list.some((v) => sameVocab(v, item))) {
-    // The API has no DELETE /vocab yet, so un-saving is local only.
-    await chrome.storage.local.set({ [VOCAB_KEY]: list.filter((v) => !sameVocab(v, item)) });
+  if (list.some((v) => sameWord(v, item))) {
+    const result = await chrome.runtime.sendMessage({ type: 'll:vocab-delete', word: item.word, lang: item.lang });
+    if (!result?.ok) throw new Error('Could not remove from the database. Check the backend connection and try again.');
+    await chrome.storage.local.set({ [VOCAB_KEY]: list.filter((v) => !sameWord(v, item)) });
     return false;
   }
   const result = await chrome.runtime.sendMessage({ type: 'll:vocab', item });
   if (!result?.ok) throw new Error('Could not save to the database. Check the backend connection and try again.');
   await chrome.storage.local.set({ [VOCAB_KEY]: [{ ...item, saved_at: Date.now() }, ...list].slice(0, 1000) });
-  logEvent({ event_type: 'save', video_id: item.video_id, word: item.word, lang: 'es', meta: { translation: item.translation, video_ts: item.video_ts } });
+  logEvent({ event_type: 'save', video_id: item.video_id, word: item.word, lang: item.lang, meta: { translation: item.translation, video_ts: item.video_ts } });
   return true;
+}
+
+/** Replaces the local saved-word list with the database copy. Call on panel open and after sign-in. */
+export async function syncVocab(): Promise<void> {
+  try {
+    const { langTgt } = await getSettings();
+    const result = await chrome.runtime.sendMessage({ type: 'll:vocab-list', lang: langTgt });
+    if (!result?.ok || !Array.isArray(result.words)) return; // offline or signed out: keep the local copy
+    const items: VocabItem[] = result.words.map((r: any) => ({
+      lang: r.lang ?? langTgt, word: String(r.word),
+      translation: String(r.translation ?? ''),
+      video_id: r.video_id ?? null,
+      video_ts: Number(r.video_ts) || 0,
+      saved_at: Date.parse(r.saved_at) || Date.now(),
+    }));
+    const other = (await getVocab()).filter(item => (item.lang ?? 'es') !== langTgt);
+    await chrome.storage.local.set({ [VOCAB_KEY]: [...items, ...other].slice(0, 1000) });
+  } catch {
+    // Extension reloaded or worker asleep; the next sync will catch up.
+  }
 }

@@ -14,7 +14,8 @@ export const PANEL_CSS = `
 }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
-button { font: inherit; }
+button, select { font: inherit; }
+#learning-language { max-width: 180px; min-height: 40px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--ink); padding: 6px; }
 a { color: var(--ink); } a:hover { color: var(--olive); }
 :focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 
@@ -28,6 +29,15 @@ a { color: var(--ink); } a:hover { color: var(--olive); }
 }
 /* Narrow windows: the panel becomes the whole width; short ones: tighter padding. */
 @media (max-width: 520px) { :host { width: 100vw; } .panel { border-left: 0; } }
+/* Collapsed: the host shrinks to a logo bubble so the rest of the page stays clickable. */
+:host(.collapsed) { top: auto; bottom: 24px; right: 24px; width: 56px; height: 56px; }
+.bubble {
+  width: 56px; height: 56px; padding: 0; border-radius: 50%; display: grid; place-items: center; cursor: pointer;
+  background: var(--sand); border: 1px solid var(--border); box-shadow: 0 6px 20px rgba(0, 0, 0, .28);
+  transition: transform .15s;
+}
+.bubble:hover { transform: scale(1.06); }
+.bubble img { display: block; width: 26px; height: 30px; }
 @media (max-height: 640px) {
   .view.lookup { gap: 14px; padding-top: 10px; }
   .view.signin { gap: 24px; padding: 24px; }
@@ -38,9 +48,11 @@ a { color: var(--ink); } a:hover { color: var(--olive); }
 .eyebrow { font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; margin: 0; }
 
 /* Sign in */
-.view.signin { align-items: center; justify-content: center; gap: 40px; padding: 48px 32px; }
+.view.signin { align-items: center; justify-content: center; gap: 40px; padding: 48px 32px; position: relative; }
+.signin-top { position: absolute; top: 12px; right: 12px; }
 .brand { display: flex; flex-direction: column; align-items: center; gap: 12px; }
 .wordmark { display: block; width: 300px; max-width: 100%; height: auto; }
+.brand-link { display: block; max-width: 100%; padding: 0; border: 0; background: none; border-radius: 12px; cursor: pointer; }
 .tagline { margin: 0; font-size: 20px; font-weight: 700; letter-spacing: -.01em; text-align: center; }
 .pitch { margin: 0; font-size: 16px; line-height: 1.5; text-align: center; color: var(--ink-soft); max-width: 300px; }
 .signin-actions { display: flex; flex-direction: column; align-items: center; gap: 16px; width: 100%; }

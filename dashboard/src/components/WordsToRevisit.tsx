@@ -1,9 +1,10 @@
 import { useState } from 'react';
+import type { Language } from '../../../shared/languages.ts';
 import { api, type RevisitWord } from '../api.ts';
 
-type Props = { words: RevisitWord[] | undefined; onChange: () => void };
+type Props = { words: RevisitWord[] | undefined; language: Language; onChange: () => void };
 
-export function WordsToRevisit({ words, onChange }: Props) {
+export function WordsToRevisit({ words, language, onChange }: Props) {
   const [saving, setSaving] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -15,7 +16,7 @@ export function WordsToRevisit({ words, onChange }: Props) {
     setSaving(word);
     setError(null);
     try {
-      await api.setVocabStatus(word, 'known');
+      await api.setVocabStatus(word, 'known', language);
       onChange();
     } catch {
       setError(`Couldn't mark “${word}” as mastered. Try again.`);
@@ -30,7 +31,7 @@ export function WordsToRevisit({ words, onChange }: Props) {
         {words.map((w) => (
           <li key={w.word}>
             <div className="revisit-text">
-              <div className="revisit-word" lang="es">{w.word}</div>
+              <div className="revisit-word" lang={language}>{w.word}</div>
               {w.translation && <div className="revisit-translation">{w.translation}</div>}
               {w.note && <div className="revisit-note">{w.note}</div>}
             </div>
