@@ -71,10 +71,11 @@ const HTML = `
       <div class="name">langtube</div>
       <div class="video-title" id="video-title"></div>
     </div>
-    <span class="pill" id="pill" role="status"></span>
     <button type="button" class="icon sign-out" aria-label="Sign out" title="Sign out"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 4h3a2 2 0 012 2v12a2 2 0 01-2 2h-3"></path><path d="M10 16l-4-4 4-4M6 12h10"></path></svg></button>
     <button type="button" class="icon collapse-panel" aria-label="Collapse panel" title="Collapse"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 17l5-5-5-5M6 17l5-5-5-5"></path></svg></button><button type="button" class="icon close-panel" aria-label="Close panel"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
   </header>
+
+  <div class="translation-status"><span class="pill" id="pill" role="status"></span></div>
 
   <section class="card"><label class="row" for="learning-language">Learning language <select id="learning-language" aria-label="Learning language"></select></label><p id="language-note" hidden>Tagalog is in preview. Double-check caption translations and word meanings.</p></section>
 
@@ -159,6 +160,28 @@ export function createPanel(deps: PanelDeps): PanelController {
 
   let open = false;
   let collapsed = false; // open, but shrunk to the logo bubble
+  let layoutObserver: ResizeObserver | null = null;
+  // Cover the recommendation column, including YouTube's outer right margin.
+  // In theater/fullscreen layouts that column is below the player: keep the normal width.
+  function fitToRecommendations() {
+    if (!open) return;
+    const viewport = document.documentElement.clientWidth;
+    const secondary = document.querySelector<HTMLElement>('ytd-watch-flexy #secondary');
+    const player = document.querySelector<HTMLElement>('#movie_player');
+    const column = secondary?.getBoundingClientRect();
+    const video = player?.getBoundingClientRect();
+    const alongside = column && video && column.width > 0 && column.left >= viewport / 2 && column.left >= video.right - 2;
+    const left = alongside ? Math.max(video.right, column.left - 8) : viewport - 400;
+    host.style.setProperty('--ll-panel-width', `${Math.min(viewport, Math.max(320, viewport - left))}px`);
+  }
+  function observeLayout() {
+    layoutObserver?.disconnect();
+    if (typeof ResizeObserver === 'undefined') return;
+    layoutObserver = new ResizeObserver(fitToRecommendations);
+    for (const target of document.querySelectorAll('ytd-watch-flexy #secondary, #movie_player')) layoutObserver.observe(target);
+  }
+  document.defaultView?.addEventListener('resize', fitToRecommendations);
+  document.addEventListener('yt-navigate-finish', () => { if (open) { observeLayout(); fitToRecommendations(); } });
   let status: PanelStatus = { kind: 'idle' };
   let range: '30m' | '24h' = '30m';
   let stats: { today: DayStats; yesterday: DayStats } = { today: emptyDay(), yesterday: emptyDay() };
@@ -446,6 +469,8 @@ export function createPanel(deps: PanelDeps): PanelController {
     if (open) {
       if (!host.isConnected) (document.fullscreenElement ?? document.body).append(host);
       host.style.display = '';
+      fitToRecommendations();
+      observeLayout();
       void loadStats().then(renderAll);
       renderAll();
       clearInterval(timer);
@@ -453,6 +478,7 @@ export function createPanel(deps: PanelDeps): PanelController {
       $('panel').focus({ preventScroll: true });
     } else {
       host.style.display = 'none';
+      layoutObserver?.disconnect();
       setCollapsed(false);
       clearInterval(timer);
       deps.onClose?.();
