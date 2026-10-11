@@ -109,7 +109,7 @@ function ConversationPractice({ language }: { language: Language }) {
   const reviewWords = review?.struggles.filter(word => word.kind !== 'grammar' && isReviewVocabulary(word.word, language)) ?? [];
   const selected = config?.scenarios.find(item => item.id === scenario);
   return <section className="study-page" aria-label={`${info.name} conversation practice`}>
-    <div className="study-intro"><span className="study-eyebrow">LET’S TALK</span>
+    <div className="study-intro">
       <h2>A little {info.name}, a real conversation.</h2>
       <p>Meet Luna, your conversation partner. Practice everyday {info.name}, make mistakes, and ask for help in English whenever you need it.</p>
     </div>
@@ -124,7 +124,7 @@ function ConversationPractice({ language }: { language: Language }) {
         <p className="muted">Luna can weave your most recently saved {info.name} words into the conversation.</p>
       </div>
       <div className="study-conversation">
-        <div className={`study-orb ${connected && conversation.isSpeaking ? 'speaking' : ''}`} aria-hidden="true">L</div>
+        <div className={`study-orb ${connected && conversation.isSpeaking ? 'speaking' : ''}`} aria-hidden="true"><img src="/study-orb.svg" alt="" /></div>
         <h3>{selected?.title ?? 'Conversation practice'}</h3>
         <p className="study-state" role="status">{starting || conversation.status === 'connecting' ? 'Connecting…' : connected
           ? conversation.isMuted ? 'Microphone muted' : conversation.isSpeaking ? 'Luna is speaking' : 'Your turn — Luna is listening'

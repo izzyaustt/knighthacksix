@@ -12,7 +12,7 @@ import { stt } from './src/elevenlabs.ts';
 import { cachedTts } from './src/ttsCache.ts';
 import { scoreAttempt } from './src/scoring.ts';
 import { createPool } from './database.mjs';
-import { createDataRouter, createAttemptHandler } from './data-routes.mjs';
+import { createDataRouter, createAttemptHandler, saveVideoWords } from './data-routes.mjs';
 import { authRoutes, requireUser } from './auth.mjs';
 import { createStudyRouter } from './study-routes.mjs';
 
@@ -49,11 +49,14 @@ app.post('/align', async (req, res) => {
 
   const digest = createHash('sha256').update(JSON.stringify(lines)).digest('hex');
   const key = `${aiCacheKey(aiConfig)}|${videoId}|${lang}|${level}|${startIndex}|${digest}`;
-  if (cache.has(key)) return res.json({ startIndex, lines: cache.get(key), cached: true });
+  // Word coverage for the dashboard; a database failure must never fail a caption request.
+  const recordWords = aligned => saveVideoWords(pool, videoId.trim(), lang, aligned).catch(() => console.error('[database] Could not save video words'));
+  if (cache.has(key)) { recordWords(cache.get(key)); return res.json({ startIndex, lines: cache.get(key), cached: true }); }
 
   const aligned = await alignBatch(lines, { level, lang });
   if (!aligned.every(l => typeof l.target === 'string' && l.target.trim())) return res.status(502).json({ error: 'Translation provider returned an incomplete batch. Retry the request.' });
   cache.set(key, aligned); save(); // cache only complete batches
+  recordWords(aligned);
   res.json({ startIndex, lines: aligned });
 });
 
@@ -89,7 +92,7 @@ app.post('/tts', async (req, res) => {
 app.post('/stt', requireUser, upload.single('audio'), createAttemptHandler(pool, { stt, scoreAttempt }));
 
 // --- Tiger Data ---
-app.use(createDataRouter(pool, requireUser));
+app.use(createDataRouter(pool, requireUser, { explain: explainPhrase }));
 
 // Provider failures (ElevenLabs, Gemini) come back as JSON instead of an HTML error page.
 app.use((err, _req, res, _next) => {
