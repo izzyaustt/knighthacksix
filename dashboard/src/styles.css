@@ -252,6 +252,17 @@ button { font: inherit; }
 .study-message p { margin: 6px 0 0; line-height: 1.6; }
 @media (max-width: 850px) { .study-layout { grid-template-columns: 1fr; } }
 
+.study-feedback { margin-top: 24px; padding: 24px; background: var(--surface); border-radius: var(--radius); }
+.study-feedback p { line-height: 1.6; }
+.study-feedback-note { padding: 12px 16px; background: var(--heat-0); color: var(--ink-2); border-radius: 12px; }
+.study-feedback button { padding: 12px 18px; border-radius: 10px; font: inherit; cursor: pointer; }
+.study-rating strong { color: var(--olive-ink); font-size: 32px; }
+.study-rating-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin: 20px 0; }
+.study-rating-grid > div, .study-review-word { padding: 16px; border: 1px solid var(--line); border-radius: 12px; }
+.study-review-word { margin-top: 12px; }
+.study-review-word h4 { margin: 0; color: var(--olive-ink); font-size: 20px; }
+.study-review-word h4 span { font-weight: 400; color: var(--ink-2); }
+@media (max-width: 600px) { .study-rating-grid { grid-template-columns: 1fr; } }
 /* ---------- Flashcards (Study page) ---------- */
 
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
@@ -360,8 +371,8 @@ button { font: inherit; }
 /* Desktop: the Study page fits the window instead of scrolling; the word list scrolls in the space left
    above the Tutor card, and the deck column scrolls only if a long attempt result outgrows a short window. */
 @media (min-width: 851px) {
-  .main:has(> .study-page) { height: calc(100dvh - 64px); overflow: hidden; display: flex; flex-direction: column; padding-bottom: 24px; }
-  .main > .study-page { flex: 1; min-height: 0; width: 100%; display: flex; flex-direction: column; }
+  .main:has(> .study-page > .study-deck) { height: calc(100dvh - 64px); overflow: hidden; display: flex; flex-direction: column; padding-bottom: 24px; }
+  .main:has(> .study-page > .study-deck) > .study-page { flex: 1; min-height: 0; width: 100%; display: flex; flex-direction: column; }
   .study-page > .study-deck { flex: 1; min-height: 0; grid-template-rows: minmax(0, 1fr) auto; }
   .study-page > .study-deck.drawer-closed { grid-template-rows: auto minmax(0, 1fr); }
   .study-deck .vocab-drawer { max-height: none; align-self: stretch; min-height: 0; }

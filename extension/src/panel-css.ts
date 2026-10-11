@@ -3,7 +3,7 @@ export const PANEL_CSS = `
 :host {
   all: initial;
   position: fixed; top: 0; right: 0; bottom: 0; z-index: 2300;
-  width: 400px; max-width: 100vw; height: 100vh; height: 100dvh;
+  width: var(--ll-panel-width, 400px); max-width: 100vw; height: 100vh; height: 100dvh;
   font-family: Figtree, system-ui, sans-serif;
   /* Langtube palette */
   --sand: #EDE1D6; --ink: #3A2C35; --ink-soft: #4E4048; --olive: #5E6128; --pink: #F2C6C7; --wine: #8A3F48;
@@ -149,6 +149,7 @@ header { display: flex; align-items: center; gap: 10px; padding: 0 0 0 4px; }
 .titles { min-width: 0; flex: 1; }
 .name { font-family: Caveat, cursive; font-weight: 600; font-size: 30px; line-height: 1; color: var(--olive); }
 .video-title { font-size: 14px; font-weight: 500; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.translation-status { display: flex; align-items: center; padding-left: 4px; }
 .pill {
   flex: none; font-size: 13px; font-weight: 600; padding: 6px 12px; border-radius: 999px; white-space: nowrap;
   background: var(--surface); color: var(--ink);
