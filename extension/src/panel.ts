@@ -6,8 +6,8 @@ import { LANGUAGES, isLanguage } from '../../shared/languages';
 import { getSettings } from './settings';
 import LOGO_FULL from './assets/logo-full.png?inline';
 import LOGO_MARK from './assets/logo-mark.png?inline';
+import MASCOT from './assets/mascot.svg?inline';
 import { PANEL_CSS } from './panel-css';
-import { dayKey, emptyDay, isStatsKey, readRecent, type DayStats } from './stats';
 
 export type PanelStatus =
   | { kind: 'idle' }                                   // not on a watch page
@@ -67,46 +67,21 @@ const HTML = `
  <div class="view home" id="view-home">
   <header>
     <img class="logo" src="${LOGO_MARK}" alt="" width="34" height="40">
-    <div class="titles">
-      <div class="name">langtube</div>
-      <div class="video-title" id="video-title"></div>
-    </div>
+    <div class="titles"></div>
     <button type="button" class="icon sign-out" aria-label="Sign out" title="Sign out"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 4h3a2 2 0 012 2v12a2 2 0 01-2 2h-3"></path><path d="M10 16l-4-4 4-4M6 12h10"></path></svg></button>
-    <button type="button" class="icon collapse-panel" aria-label="Collapse panel" title="Collapse"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 17l5-5-5-5M6 17l5-5-5-5"></path></svg></button><button type="button" class="icon close-panel" aria-label="Close panel"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+    <button type="button" class="icon collapse-panel" aria-label="Collapse panel" title="Collapse"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 17l5-5-5-5M6 17l5-5-5-5"></path></svg></button>
   </header>
 
-  <div class="translation-status"><span class="pill" id="pill" role="status"></span></div>
+  <div class="empty">
+    <img class="mascot" src="${MASCOT}" alt="" width="155" height="138">
+    <p class="empty-text">you currently have no word(s) selected.</p>
+    <p class="empty-text">click one to begin!</p>
+    <section id="alerts" aria-live="polite"></section>
+  </div>
 
-  <section class="card"><label class="row" for="learning-language">Learning language <select id="learning-language" aria-label="Learning language"></select></label><p id="language-note" hidden>Tagalog is in preview. Double-check caption translations and word meanings.</p></section>
-
-  <section id="alerts" aria-live="polite"></section>
-
-  <section class="stats">
-    <div class="card"><div class="label">Practice today</div><div class="value" id="minutes">0m</div></div>
-    <div class="card"><div class="label">Lookups today</div><div class="value" id="lookups">0</div></div>
-  </section>
-
-  <section class="tip" id="tip">
-    <div class="tip-icon" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11V5a2 2 0 014 0v6"></path><path d="M13 10a2 2 0 014 0v1a2 2 0 014 0v4a6 6 0 01-6 6h-2a6 6 0 01-5-2.7L5.5 15a2 2 0 013.4-2L9 13"></path></svg></div>
-    <div class="tip-body">
-      <h2>Tap any word</h2>
-      <p>Any word in the captions on the video opens its meaning, the clip it came from, and a chance to say it yourself. The video pauses while you look.</p>
-    </div>
-  </section>
-
-  <section class="card">
-    <div class="spark-head">
-      <span class="label">Watching</span>
-      <div class="seg" aria-label="Activity range">
-        <button type="button" data-range="30m" aria-pressed="true">30m</button>
-        <button type="button" data-range="24h" aria-pressed="false">24h</button>
-      </div>
-    </div>
-    <svg id="spark" role="img" aria-label=""></svg>
-    <div class="spark-axis"><span id="axis-start">30 min ago</span><span>now</span></div>
-  </section>
-
-  <section class="card">
+  <section class="mini-settings">
+    <label class="row" for="learning-language">Learning language <select id="learning-language" aria-label="Learning language"></select></label>
+    <p id="language-note" hidden>Tagalog is in preview. Double-check caption translations and word meanings.</p>
     <div class="row">
       <span id="cc-label">Bilingual captions</span>
       <button type="button" class="switch" id="cc" role="switch" aria-checked="true" aria-labelledby="cc-label"><span></span></button>
@@ -146,7 +121,8 @@ export function createPanel(deps: PanelDeps): PanelController {
   for (const [code, language] of Object.entries(LANGUAGES)) {
     const option = document.createElement('option'); option.value = code; option.textContent = language.name; languageSelect.append(option);
   }
-  const showLanguageNote = () => { $('language-note').hidden = languageSelect.value !== 'fil'; };
+  const TAGALOG_NOTE = 'Tagalog is in preview. Double-check caption translations and word meanings.';
+  const showLanguageNote = () => { $('language-note').textContent = TAGALOG_NOTE; $('language-note').hidden = languageSelect.value !== 'fil'; };
   void getSettings().then(settings => { languageSelect.value = settings.langTgt; showLanguageNote(); });
   languageSelect.addEventListener('change', async () => {
     languageSelect.disabled = true;
@@ -154,7 +130,7 @@ export function createPanel(deps: PanelDeps): PanelController {
       const settings = await getSettings();
       await chrome.storage.local.set({ settings: { ...settings, langTgt: languageSelect.value } });
       showLanguageNote();
-    } catch { $('pill').textContent = 'Could not change language. Try again.'; }
+    } catch { $('language-note').textContent = 'Could not change language. Try again.'; $('language-note').hidden = false; }
     finally { languageSelect.disabled = false; }
   });
 
@@ -183,9 +159,6 @@ export function createPanel(deps: PanelDeps): PanelController {
   document.defaultView?.addEventListener('resize', fitToRecommendations);
   document.addEventListener('yt-navigate-finish', () => { if (open) { observeLayout(); fitToRecommendations(); } });
   let status: PanelStatus = { kind: 'idle' };
-  let range: '30m' | '24h' = '30m';
-  let stats: { today: DayStats; yesterday: DayStats } = { today: emptyDay(), yesterday: emptyDay() };
-  let timer = 0;
   let alertKey: string | null = null;
 
   // The service worker owns the Google session (auth.ts); the panel only asks and listens for changes.
@@ -216,10 +189,6 @@ export function createPanel(deps: PanelDeps): PanelController {
 
   /* ---------- data ---------- */
 
-  async function loadStats() {
-    try { stats = await readRecent(); } catch { /* orphaned after extension reload */ }
-  }
-
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== 'local') return;
     const nextLanguage = (changes.settings?.newValue as { langTgt?: unknown } | undefined)?.langTgt;
@@ -230,96 +199,17 @@ export function createPanel(deps: PanelDeps): PanelController {
       if (!changes[SESSION_KEY].newValue) showSignIn();
       else { signedIn = true; renderView(); }
     }
-    if (!open) return;
-    const keys = Object.keys(changes);
-    if (keys.some(isStatsKey)) void loadStats().then(renderLive);
   });
-
-  function todayWatchSeconds() {
-    const today = dayKey();
-    let secs = Object.values(stats.today.watch).reduce((a, b) => a + b, 0);
-    for (const [minute, s] of deps.pendingWatch()) if (dayKey(new Date(minute * 60_000)) === today) secs += s;
-    return secs;
-  }
-
-  function watchedIn(minute: number) {
-    const d = new Date(minute * 60_000);
-    const day = dayKey(d) === dayKey() ? stats.today : stats.yesterday;
-    return (day.watch[d.getHours() * 60 + d.getMinutes()] ?? 0) + (deps.pendingWatch().get(minute) ?? 0);
-  }
-
-  /** 30m: share of each minute spent watching (0–1). 24h: minutes watched per hour. Oldest first. */
-  function series(): number[] {
-    const nowMin = Math.floor(Date.now() / 60_000);
-    if (range === '30m') {
-      return Array.from({ length: 30 }, (_, i) => Math.min(1, watchedIn(nowMin - 29 + i) / 60));
-    }
-    const out: number[] = [];
-    for (let h = 23; h >= 0; h--) {
-      const hourEnd = nowMin - h * 60;
-      let secs = 0;
-      for (let m = hourEnd - 59; m <= hourEnd; m++) secs += watchedIn(m);
-      out.push(secs / 60);
-    }
-    return out;
-  }
 
   /* ---------- rendering ---------- */
 
   function renderAll() {
-    renderStatus();
     renderToggles();
-    for (const b of shadow.querySelectorAll<HTMLButtonElement>('.seg button')) {
-      b.setAttribute('aria-pressed', String(b.dataset.range === range));
-    }
-    $('axis-start').textContent = range === '30m' ? '30 min ago' : '24 h ago';
-    renderLive();
-  }
-
-  /** Every second while open. */
-  function renderLive() {
-    if (!open) return;
-    $('video-title').textContent = deps.getVideoId()
-      ? document.title.replace(/^\(\d+\)\s*/, '').replace(/\s*-\s*YouTube$/, '')
-      : 'No video open';
-    $('minutes').textContent = fmtDuration(todayWatchSeconds());
-    $('lookups').textContent = String(stats.today.lookups);
-    drawSpark(series());
     renderAlerts();
-  }
-
-  function renderStatus() {
-    const pill = $('pill');
-    const [state, text] =
-      status.kind === 'idle' ? ['idle', 'No video'] :
-      status.kind === 'waiting' ? ['working', 'Loading captions'] :
-      status.kind === 'aligning' ? ['working', `Translating ${Math.round((status.done / Math.max(1, status.total)) * 100)}%`] :
-      status.failed ? ['warn', 'Partly translated'] : ['ready', 'Ready'];
-    pill.dataset.state = state;
-    pill.textContent = text;
   }
 
   function renderToggles() {
     $('cc').setAttribute('aria-checked', String(deps.captionsOn()));
-  }
-
-  function drawSpark(vals: number[]) {
-    const svg = $('spark') as unknown as SVGSVGElement;
-    const w = svg.clientWidth || 300;
-    const h = 48;
-    const pad = 4;
-    const max = Math.max(range === '30m' ? 1 : 15, ...vals);
-    const step = w / (vals.length - 1);
-    const pts = vals.map((v, i) => [i * step, h - pad - (v / max) * (h - pad * 2)] as const);
-    const d = pts.map(([x, y], i) => `${i ? 'L' : 'M'}${x.toFixed(1)},${y.toFixed(1)}`).join('');
-    const [lx, ly] = pts[pts.length - 1];
-    svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
-    svg.innerHTML =
-      `<path class="spark-area" d="${d}L${w},${h}L0,${h}Z"/>` +
-      `<path class="spark-line" d="${d}"/>` +
-      `<circle class="spark-dot" cx="${lx.toFixed(1)}" cy="${ly.toFixed(1)}" r="3"/>`;
-    const minutes = range === '30m' ? vals.reduce((a, b) => a + b, 0) : vals.reduce((a, b) => a + b, 0);
-    svg.setAttribute('aria-label', `${fmtDuration(minutes * 60)} watched in the last ${range === '30m' ? '30 minutes' : '24 hours'}`);
   }
 
   function computeAlert(): Alert | null {
@@ -382,7 +272,7 @@ export function createPanel(deps: PanelDeps): PanelController {
   }
 
   function openDashboard() {
-    const ctx = { videoId: deps.getVideoId(), t: deps.getVideo()?.currentTime, range: range === '30m' ? '1h' : '24h' };
+    const ctx = { videoId: deps.getVideoId(), t: deps.getVideo()?.currentTime, range: '1h' as const };
     try {
       chrome.runtime.sendMessage({ type: 'll:open-dashboard', ctx }).catch(() => {});
     } catch { /* orphaned */ }
@@ -404,9 +294,6 @@ export function createPanel(deps: PanelDeps): PanelController {
     });
     $('panel').addEventListener('keydown', (e) => { if (e.key === 'Escape') toggle(false); });
     $('cc').addEventListener('click', () => setCaptions(!deps.captionsOn()));
-    for (const b of shadow.querySelectorAll<HTMLButtonElement>('.seg button')) {
-      b.addEventListener('click', () => { range = b.dataset.range as '30m' | '24h'; renderAll(); });
-    }
     // Keep the panel visible in fullscreen by moving it into the fullscreen element.
     document.addEventListener('fullscreenchange', () => {
       if (host.isConnected) (document.fullscreenElement ?? document.body).append(host);
@@ -471,16 +358,12 @@ export function createPanel(deps: PanelDeps): PanelController {
       host.style.display = '';
       fitToRecommendations();
       observeLayout();
-      void loadStats().then(renderAll);
       renderAll();
-      clearInterval(timer);
-      timer = window.setInterval(renderLive, 1000);
       $('panel').focus({ preventScroll: true });
     } else {
       host.style.display = 'none';
       layoutObserver?.disconnect();
       setCollapsed(false);
-      clearInterval(timer);
       deps.onClose?.();
     }
   }
@@ -500,19 +383,10 @@ export function createPanel(deps: PanelDeps): PanelController {
     },
     setStatus(next) {
       status = next;
-      if (open) { renderStatus(); renderAlerts(); }
+      if (open) renderAlerts();
     },
     reset() {
       if (open) renderAll();
     },
   };
-}
-
-function fmtDuration(sec: number) {
-  sec = Math.max(0, Math.floor(sec));
-  const h = Math.floor(sec / 3600);
-  const m = Math.floor((sec % 3600) / 60);
-  if (h) return `${h}h ${m}m`;
-  if (m) return `${m}m`;
-  return `${sec}s`;
 }

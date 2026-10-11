@@ -169,7 +169,6 @@ header { display: flex; align-items: center; gap: 10px; padding: 0 0 0 4px; }
 .icon:hover { background: rgba(58, 44, 53, .08); }
 
 /* Cards + numbers */
-.view.home { gap: 14px; padding: 16px 16px 20px; }
 .card { background: var(--surface); border-radius: 24px; padding: 18px 20px; }
 .label { font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--ink); }
 .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
@@ -244,4 +243,16 @@ header { display: flex; align-items: center; gap: 10px; padding: 0 0 0 4px; }
 .switch[aria-checked="true"] { background: var(--olive); }
 .switch[aria-checked="true"] span { transform: translateX(20px); }
 @media (prefers-reduced-motion: reduce) { .switch span { transition: none; } }
+
+/* Nothing picked yet: the mascot empty state */
+.view.home { gap: 0; padding: 12px 16px 28px; }
+.empty { flex: 1 0 auto; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 24px 12px; text-align: center; }
+.mascot { display: block; width: 155px; height: auto; margin-bottom: 18px; }
+.empty-text { margin: 0; font-size: 20px; font-weight: 700; line-height: 1.3; color: var(--ink); max-width: 260px; }
+.empty-text + .empty-text { margin-top: 10px; }
+.empty .pill { margin-top: 6px; }
+.empty #alerts { width: 100%; max-width: 320px; text-align: left; }
+.mini-settings { display: flex; flex-direction: column; gap: 10px; padding: 14px 8px; font-size: 14px; }
+.mini-settings .row { font-size: 14px; }
+.mini-settings #language-note { margin: 0; font-size: 12px; color: var(--ink-soft); }
 `;
