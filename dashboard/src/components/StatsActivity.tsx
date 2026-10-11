@@ -1,24 +1,22 @@
 import { useMemo, useRef, useState, type FocusEvent, type MouseEvent } from 'react';
-import type { ActivityDay, Polled, ScoreDay, VocabWord } from '../api.ts';
+import type { ActivityDay, Polled, ScoreDay, Summary } from '../api.ts';
 import { addDays, formatDay, today, weekday } from '../dates.ts';
 import { Card } from './Card.tsx';
 
-const WEEKS = 26;
+const WEEKS = 20;
 export const HEATMAP_DAYS = WEEKS * 7;
 
 const CELL = 14;
 const GAP = 3;
 const STEP = CELL + GAP;
-const LABEL_W = 28;
 const TOP = 16;
 const LEVELS = ['var(--heat-0)', 'var(--heat-1)', 'var(--heat-2)', 'var(--heat-3)', 'var(--heat-4)'];
-const ROW_LABELS: Record<number, string> = { 1: 'Mon', 3: 'Wed', 5: 'Fri' };
 
 type Props = {
   className?: string;
   activity: Polled<ActivityDay[]>;
   scores: Polled<ScoreDay[]>;
-  vocab: Polled<VocabWord[]>;
+  summary: Polled<Summary>;
 };
 
 type Cell = { day: string; col: number; row: number; actions: number; stats?: ActivityDay };
@@ -27,7 +25,7 @@ type Hover = { cell: Cell; x: number; y: number };
 const actionsOf = (d: ActivityDay) => d.shadow_attempts + d.lookups + d.vocab_saved;
 const isActive = (d: ActivityDay | undefined) => !!d && (actionsOf(d) > 0 || d.watched_minutes > 0);
 
-export function StatsActivity({ className, activity, scores, vocab }: Props) {
+export function StatsActivity({ className, activity, scores, summary }: Props) {
   const [showTable, setShowTable] = useState(false);
   const [hover, setHover] = useState<Hover | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
@@ -61,12 +59,11 @@ export function StatsActivity({ className, activity, scores, vocab }: Props) {
     return { avgScore: scored.n ? scored.sum / scored.n : null, streak };
   }, [scores.data, byDay]);
 
-  const words = vocab.data?.length;
   // [label, value, unit]; per-day attempts, lookups, and minutes live in the heatmap tooltip and table.
   const stats: [string, string, string?][] = [
-    ['Words saved', words === undefined ? '–' : words >= 200 ? '200+' : String(words)],
+    ['Words learned', summary.data ? String(summary.data.mastery.mastered) : '–'],
     ['Avg score', totals.avgScore === null ? '–' : `${Math.round(totals.avgScore * 100)}%`],
-    ['Day streak', String(totals.streak), totals.streak === 1 ? 'day' : 'days'],
+    ['Streak', String(totals.streak), totals.streak === 1 ? 'day' : 'days'],
   ];
 
   const showTooltip = (cell: Cell) => (event: MouseEvent<SVGRectElement> | FocusEvent<SVGRectElement>) => {
@@ -75,7 +72,7 @@ export function StatsActivity({ className, activity, scores, vocab }: Props) {
     setHover({ cell, x: box.left + box.width / 2 - card.left, y: box.top - card.top });
   };
 
-  const width = LABEL_W + WEEKS * STEP;
+  const width = WEEKS * STEP;
   const height = TOP + 7 * STEP;
   const activeDays = (activity.data ?? []).filter(isActive).reverse();
 
@@ -115,17 +112,15 @@ export function StatsActivity({ className, activity, scores, vocab }: Props) {
             </div>
           ) : (
             <div className="heatmap">
-              <svg width={width} height={height} role="img" aria-label={`Daily activity over the last ${WEEKS} weeks. Use See All for a table.`}>
+              <svg viewBox={`0 0 ${width} ${height}`} style={{ maxWidth: width }} role="img" aria-label={`Daily activity over the last ${WEEKS} weeks. Use See All for a table.`}>
                 {months.map((c) => (
-                  <text key={c.day} className="axis-text" x={LABEL_W + c.col * STEP} y={10}>{formatDay(c.day, { month: 'short' })}</text>
-                ))}
-                {Object.entries(ROW_LABELS).map(([row, label]) => (
-                  <text key={row} className="axis-text" x={0} y={TOP + Number(row) * STEP + CELL - 2}>{label}</text>
+                  <text key={c.day} className="axis-text" x={c.col * STEP} y={10}>{c.day.slice(5, 7)}</text>
                 ))}
                 {cells.map((c) => (
                   <rect
                     key={c.day}
-                    x={LABEL_W + c.col * STEP}
+                    className={level(c) === 0 ? 'heat-empty' : undefined}
+                    x={c.col * STEP}
                     y={TOP + c.row * STEP}
                     width={CELL}
                     height={CELL}
