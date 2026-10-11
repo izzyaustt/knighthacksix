@@ -1,4 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
+import { LANGUAGES, isLanguage, type Language } from '../../shared/languages.ts';
 import { api, usePolling, type Status } from './api.ts';
 import { signOut, type Session } from './auth.ts';
 import { Study } from './components/Study.tsx';
@@ -16,17 +17,17 @@ const Tutor = lazy(() => import('./components/Tutor.tsx').then(module => ({ defa
 type Page = 'dashboard' | 'study' | 'tutor';
 const currentPage = (): Page => window.location.hash === '#study/tutor' ? 'tutor' : window.location.hash === '#study' ? 'study' : 'dashboard';
 
-export function App({ user }: { user: Session['user'] }) {
+export function App({ user, language, onLanguageChange }: { user: Session['user']; language: Language; onLanguageChange: (language: Language) => void }) {
   const [page, setPage] = useState<Page>(currentPage);
   useEffect(() => {
     const onNavigation = () => setPage(currentPage());
     window.addEventListener('hashchange', onNavigation);
     return () => window.removeEventListener('hashchange', onNavigation);
   }, []);
-  const activity = usePolling(useCallback((s: AbortSignal) => api.activity(HEATMAP_DAYS, s), []), STATS_INTERVAL);
-  const scores = usePolling(useCallback((s: AbortSignal) => api.scoreTrend(Math.max(HEATMAP_DAYS, SCORE_DAYS), s), []), STATS_INTERVAL);
-  const vocab = usePolling(api.vocab, STATS_INTERVAL);
-  const recent = usePolling(api.recent, VIDEOS_INTERVAL);
+  const activity = usePolling(useCallback((s: AbortSignal) => api.activity(HEATMAP_DAYS, s, language), [language]), STATS_INTERVAL);
+  const scores = usePolling(useCallback((s: AbortSignal) => api.scoreTrend(Math.max(HEATMAP_DAYS, SCORE_DAYS), s, language), [language]), STATS_INTERVAL);
+  const vocab = usePolling(useCallback((s: AbortSignal) => api.vocab(s, language), [language]), STATS_INTERVAL);
+  const recent = usePolling(useCallback((s: AbortSignal) => api.recent(s, language), [language]), VIDEOS_INTERVAL);
 
   const statuses: Status[] = [activity.status, scores.status, vocab.status, recent.status];
   const offline = statuses.some((s) => s === 'error' || s === 'stale');
@@ -39,6 +40,9 @@ export function App({ user }: { user: Session['user'] }) {
         </a>
         <h1 className="page-title">{page === 'tutor' ? 'Tutor' : page === 'study' ? 'Study' : 'Overview'}</h1>
         <div className="account">
+          <select className="language-select" aria-label="Learning language" value={language} onChange={event => { if (isLanguage(event.target.value)) onLanguageChange(event.target.value); }}>
+            {Object.entries(LANGUAGES).map(([code, info]) => <option key={code} value={code}>{info.name}</option>)}
+          </select>
           <span className="account-email" title={user.name ?? undefined}>{user.email}</span>
           <button className="avatar" type="button" onClick={signOut} title="Sign out" aria-label={`Sign out ${user.email}`}>
             <SignOutIcon />
@@ -53,7 +57,7 @@ export function App({ user }: { user: Session['user'] }) {
       </nav>
 
       <main className="main">
-        {page === 'tutor' ? <Suspense fallback={<p role="status">Loading your tutor…</p>}><Tutor /></Suspense> : page === 'study' ? <Study onOpenTutor={() => { window.location.hash = 'study/tutor'; }} /> : <>
+        {page === 'tutor' ? <Suspense fallback={<p role="status">Loading your tutor…</p>}><Tutor language={language} /></Suspense> : page === 'study' ? <Study language={language} onOpenTutor={() => { window.location.hash = 'study/tutor'; }} /> : <>
         {offline && (
           <p className="banner" role="status">
             Can't reach the backend, so some numbers may be out of date. Start it from <code>backend/</code> with{' '}
@@ -68,14 +72,14 @@ export function App({ user }: { user: Session['user'] }) {
           </Card>
 
           <Card className="span-8" title="Vocab Lists" status={vocab.status}>
-            <VocabList words={vocab.data} />
+            <VocabList words={vocab.data} language={language} />
           </Card>
           <Card className="span-4" title="User Leaderboard">
             <p className="empty">Leaderboards are coming once accounts are added.</p>
           </Card>
 
           <Card className="span-5" title="More Resources">
-            <Resources />
+            <Resources language={language} />
           </Card>
           <Card className="span-7" title="Intelligibility Score" status={scores.status}>
             <ScoreChart points={scores.data} />

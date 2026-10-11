@@ -1,3 +1,4 @@
+import type { Language } from '../../shared/languages.ts';
 import { BACKEND_URL, getSession, signOut } from './auth.ts';
 export type Scenario = { id: string; title: string; description: string };
 export type StudyConfig = { available: boolean; max_duration_seconds: number; scenarios: Scenario[] };
@@ -14,5 +15,5 @@ async function request<T>(path: string, signal: AbortSignal, body?: object): Pro
   if (!response.ok) throw Error(result.error ?? 'Could not connect to conversation practice.');
   return result as T;
 }
-export const studyConfig = (signal: AbortSignal) => request<StudyConfig>('/study/config', signal);
-export const studySession = (scenario: string, level: string, signal: AbortSignal) => request<StudySession>('/study/session', signal, { scenario, level });
+export const studyConfig = (signal: AbortSignal, lang: Language = 'es') => request<StudyConfig>(`/study/config?lang=${lang}`, signal);
+export const studySession = (scenario: string, level: string, signal: AbortSignal, lang: Language = 'es') => request<StudySession>('/study/session', signal, { scenario, level, lang });

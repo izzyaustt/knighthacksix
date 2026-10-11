@@ -1,3 +1,4 @@
+import type { Language } from '../../shared/languages.ts';
 import { useEffect, useRef, useState } from 'react';
 import { BACKEND_URL, getSession, signOut } from './auth.ts';
 
@@ -50,13 +51,13 @@ async function get<T>(path: string, query: Record<string, string | number>, sign
 }
 
 export const api = {
-  activity: (days: number, signal: AbortSignal) =>
-    get<{ points: ActivityDay[] }>('/stats/activity', { days }, signal).then((r) => r.points),
-  scoreTrend: (days: number, signal: AbortSignal) =>
-    get<{ points: ScoreDay[] }>('/stats/score-trend', { days }, signal).then((r) => r.points),
-  vocab: (signal: AbortSignal) => get<{ words: VocabWord[] }>('/vocab', { limit: 200 }, signal).then((r) => r.words),
-  recent: (signal: AbortSignal) =>
-    get<{ events: RecentEvent[] }>('/stats/recent', { limit: 1000 }, signal).then((r) => r.events),
+  activity: (days: number, signal: AbortSignal, lang: Language = 'es') =>
+    get<{ points: ActivityDay[] }>('/stats/activity', { days, lang }, signal).then((r) => r.points),
+  scoreTrend: (days: number, signal: AbortSignal, lang: Language = 'es') =>
+    get<{ points: ScoreDay[] }>('/stats/score-trend', { days, lang }, signal).then((r) => r.points),
+  vocab: (signal: AbortSignal, lang: Language = 'es') => get<{ words: VocabWord[] }>('/vocab', { limit: 200, lang }, signal).then((r) => r.words),
+  recent: (signal: AbortSignal, lang: Language = 'es') =>
+    get<{ events: RecentEvent[] }>('/stats/recent', { limit: 1000, lang }, signal).then((r) => r.events),
 };
 
 // --- Polling ---

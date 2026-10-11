@@ -1,3 +1,4 @@
+import type { Language } from '../../shared/languages.ts';
 const API = 'https://api.elevenlabs.io/v1';
 const DEFAULT_VOICE = 'JBFqnCBsd6RMkjVDRZzb';
 
@@ -29,7 +30,7 @@ function apiKey() {
 // Keep practice playback in a comfortable learning range.
 export const clampSpeed = (speed: number) => Math.min(1.2, Math.max(0.7, speed || 1));
 
-export async function tts(text: string, speed = 1): Promise<Buffer> {
+export async function tts(text: string, speed = 1, lang: Language = 'es'): Promise<Buffer> {
   const res = await audioRequest(`${API}/text-to-speech/${voiceId()}?output_format=mp3_44100_128`, {
     method: 'POST',
     signal: AbortSignal.timeout(30000),
@@ -37,7 +38,7 @@ export async function tts(text: string, speed = 1): Promise<Buffer> {
     body: JSON.stringify({
       text,
       model_id: speechModel(),
-      language_code: 'es',
+      language_code: lang,
       voice_settings: speechSettings(speed),
     }),
   });

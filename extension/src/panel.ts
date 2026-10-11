@@ -2,6 +2,8 @@
 // shadow root (per spec: an injected panel, not Chrome's side panel API), so it can drive the
 // video directly. Captions stay on the video; the panel shows a lookup only once a word is picked
 // (practice.ts renders into the lookup view).
+import { LANGUAGES, isLanguage } from '../../shared/languages';
+import { getSettings } from './settings';
 import LOGO_FULL from './assets/logo-full.png?inline';
 import LOGO_MARK from './assets/logo-mark.png?inline';
 import { PANEL_CSS } from './panel-css';
@@ -45,7 +47,7 @@ const HTML = `
   <div class="brand">
     <button type="button" class="brand-link" id="brand-link" title="Open dashboard"><img class="wordmark" src="${LOGO_FULL}" alt="langtube — open dashboard" width="300" height="126"></button>
     <p class="tagline">watch it, speak it, improve it</p>
-    <p class="pitch">Learn Spanish from the YouTube videos you already watch. Tap any subtitle word to look it up and practice saying it.</p>
+    <p class="pitch">Learn a language from the YouTube videos you already watch. Tap any subtitle word to look it up and practice saying it.</p>
   </div>
   <div class="signin-actions">
     <button type="button" class="google" id="signin">
@@ -73,6 +75,8 @@ const HTML = `
     <button type="button" class="icon sign-out" aria-label="Sign out" title="Sign out"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 4h3a2 2 0 012 2v12a2 2 0 01-2 2h-3"></path><path d="M10 16l-4-4 4-4M6 12h10"></path></svg></button>
     <button type="button" class="icon collapse-panel" aria-label="Collapse panel" title="Collapse"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 17l5-5-5-5M6 17l5-5-5-5"></path></svg></button><button type="button" class="icon close-panel" aria-label="Close panel"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
   </header>
+
+  <section class="card"><label class="row" for="learning-language">Learning language <select id="learning-language" aria-label="Learning language"></select></label><p id="language-note" hidden>Tagalog is in preview. Double-check caption translations and word meanings.</p></section>
 
   <section id="alerts" aria-live="polite"></section>
 
@@ -137,6 +141,22 @@ export function createPanel(deps: PanelDeps): PanelController {
   shadow.innerHTML = `<style>${PANEL_CSS}</style>${HTML}`;
   const $ = (id: string) => shadow.getElementById(id) as HTMLElement;
 
+  const languageSelect = $('learning-language') as HTMLSelectElement;
+  for (const [code, language] of Object.entries(LANGUAGES)) {
+    const option = document.createElement('option'); option.value = code; option.textContent = language.name; languageSelect.append(option);
+  }
+  const showLanguageNote = () => { $('language-note').hidden = languageSelect.value !== 'fil'; };
+  void getSettings().then(settings => { languageSelect.value = settings.langTgt; showLanguageNote(); });
+  languageSelect.addEventListener('change', async () => {
+    languageSelect.disabled = true;
+    try {
+      const settings = await getSettings();
+      await chrome.storage.local.set({ settings: { ...settings, langTgt: languageSelect.value } });
+      showLanguageNote();
+    } catch { $('pill').textContent = 'Could not change language. Try again.'; }
+    finally { languageSelect.disabled = false; }
+  });
+
   let open = false;
   let collapsed = false; // open, but shrunk to the logo bubble
   let status: PanelStatus = { kind: 'idle' };
@@ -179,6 +199,8 @@ export function createPanel(deps: PanelDeps): PanelController {
 
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== 'local') return;
+    const nextLanguage = (changes.settings?.newValue as { langTgt?: unknown } | undefined)?.langTgt;
+    if (isLanguage(nextLanguage)) { languageSelect.value = nextLanguage; showLanguageNote(); }
     // Signed in from another tab, signed out, or the backend rejected an expired session.
     if (SESSION_KEY in changes) {
       authRevision++;

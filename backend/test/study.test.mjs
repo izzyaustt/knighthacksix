@@ -3,27 +3,30 @@ import assert from 'node:assert/strict';
 import express from 'express';
 import jwt from 'jsonwebtoken';
 import { requireUser } from '../auth.mjs';
+import { LANGUAGES } from '../../shared/languages.ts';
+import { agentEnvKey } from '../study-agent-config.mjs';
 import { createStudyRouter } from '../study-routes.mjs';
 
 test('study sessions authenticate, scope vocabulary, validate input, and hide provider errors', async t => {
   const previous = process.env.SESSION_SECRET;
   process.env.SESSION_SECRET = 'test-study-session-secret';
+  let expectedLang = 'es';
   let providerCalls = 0;
   let providerOk = true;
   let signedUrl = 'wss://api.elevenlabs.io/v1/convai/conversation?token=test';
   let databaseFails = false;
-  const env = { ELEVENLABS_API_KEY: 'private-test-key', ELEVENLABS_AGENT_ID: 'private-test-agent' };
+  const env = { ELEVENLABS_API_KEY: 'private-test-key', ELEVENLABS_AGENT_ID: 'private-test-agent', ELEVENLABS_AGENT_ID_FR: 'french-agent', ELEVENLABS_AGENT_ID_FIL: 'tagalog-agent' };
   const pool = { query: async (sql, parameters) => {
-    assert.deepEqual(parameters, ['learner-123', 'es']);
+    assert.deepEqual(parameters, ['learner-123', expectedLang]);
     assert.match(sql, /LIMIT 5/);
     if (databaseFails) throw Error('database unavailable');
-    return { rows: [{ word: 'café' }, { word: 'hola' }] };
+    return { rows: expectedLang === 'es' ? [{ word: 'café' }, { word: 'hola' }] : [{ word: expectedLang === 'fr' ? 'bonjour' : 'kamusta' }] };
   } };
   const app = express();
   app.use(express.json());
   app.use(createStudyRouter(pool, requireUser, { env, fetchImpl: async (url, options) => {
     providerCalls++;
-    assert.equal(url.searchParams.get('agent_id'), env.ELEVENLABS_AGENT_ID);
+    assert.equal(url.searchParams.get('agent_id'), env[agentEnvKey(expectedLang)]);
     assert.equal(options.headers['xi-api-key'], env.ELEVENLABS_API_KEY);
     return providerOk ? Response.json({ signed_url: signedUrl }) : new Response('secret provider error', { status: 401 });
   } }));
@@ -48,7 +51,7 @@ test('study sessions authenticate, scope vocabulary, validate input, and hide pr
     assert.ok(!JSON.stringify(config).includes('private-test'));
   });
   await t.test('invalid scenarios and levels cannot call ElevenLabs', async () => {
-    for (const body of [{ scenario: '__proto__' }, { scenario: ['cafe'] }, { level: 'C2' }]) {
+    for (const body of [{ scenario: '__proto__' }, { scenario: ['cafe'] }, { level: 'C2' }, { lang: 'to' }, { lang: ['fr'] }]) {
       assert.equal((await session(body)).status, 400);
     }
     assert.equal(providerCalls, 0);
@@ -62,6 +65,17 @@ test('study sessions authenticate, scope vocabulary, validate input, and hide pr
     assert.equal(body.dynamic_variables.level, 'A1');
     assert.equal(body.max_duration_seconds, 180);
     assert.ok(!JSON.stringify(body).includes(env.ELEVENLABS_API_KEY));
+  });
+  await t.test('French and Tagalog use their own agents, saved vocabulary, and openings', async () => {
+    for (const lang of ['fr', 'fil']) {
+      expectedLang = lang;
+      const response = await session({ lang, scenario: 'friends' });
+      assert.equal(response.status, 200);
+      const body = await response.json();
+      assert.equal(body.dynamic_variables.vocabulary, lang === 'fr' ? 'bonjour' : 'kamusta');
+      assert.equal(body.dynamic_variables.opening_question, LANGUAGES[lang].openings.friends);
+    }
+    expectedLang = 'es';
   });
   await t.test('practice remains available if vocabulary storage is offline', async () => {
     databaseFails = true;
