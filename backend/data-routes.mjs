@@ -1,8 +1,15 @@
 import { Router } from 'express';
 import { randomUUID } from 'node:crypto';
 import { transaction } from './database.mjs';
+import { normalize } from './src/scoring.ts';
 
 const TIMEZONE = 'America/New_York';
+const IMMERSION_GOAL_HOURS = 500;
+// A saved phrase is mastered after this many speaking attempts at or above this score.
+const MASTERY_SCORE = 0.9;
+const MASTERY_ATTEMPTS = 3;
+const STATUSES = ['new', 'learning', 'known'];
+const notesInFlight = new Set();
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function bad(message, status = 400) {
@@ -53,8 +60,28 @@ export function databaseErrors(error, _req, res, _next) {
   res.status(503).json({ error: 'Database temporarily unavailable' });
 }
 
-export function createDataRouter(pool, requireUser) {
+/** Records the distinct words of translated caption lines so /stats/videos can report word coverage. */
+export async function saveVideoWords(pool, videoId, lang, lines) {
+  const words = [...new Set(lines.flatMap(line => normalize(line.target ?? '')))].filter(w => w.length <= 100);
+  if (!words.length) return;
+  await pool.query(`INSERT INTO video_words (video_id,lang,word) SELECT $1,$2,unnest($3::text[])
+    ON CONFLICT DO NOTHING`, [videoId, lang, words]);
+}
+
+export function createDataRouter(pool, requireUser, { explain } = {}) {
   const router = Router();
+
+  // Fills in a missing grammar note in the background; the dashboard picks it up on a later poll.
+  function backfillNote(user, lang, row) {
+    const key = `${user}|${lang}|${row.word}`;
+    if (!explain || process.env.MOCK === '1' || notesInFlight.has(key)) return;
+    notesInFlight.add(key);
+    explain({ phrase: row.word, source: row.translation ?? '', context: '' })
+      .then(e => pool.query('UPDATE vocab SET note=$4 WHERE user_id=$1 AND lang=$2 AND word=$3 AND note IS NULL',
+        [user, lang, row.word, String(e.grammar_note).slice(0, 1000)]))
+      .catch(() => {})
+      .finally(() => notesInFlight.delete(key));
+  }
 
   router.get('/health/database', async (_req, res) => {
     await pool.query('SELECT 1');
@@ -122,6 +149,68 @@ export function createDataRouter(pool, requireUser) {
     const limit = integer(req.query.limit, 'limit', 100, 1000);
     const { rows } = await pool.query('SELECT * FROM vocab WHERE user_id=$1 AND lang=$2 ORDER BY saved_at DESC,word LIMIT $3', [user, lang, limit]);
     res.json({ words: rows });
+  });
+
+  router.patch('/vocab', requireUser, async (req, res) => {
+    const body = req.body ?? {};
+    const [user, lang] = identity(req, body);
+    const word = text(body.word, 'word', undefined, 2000);
+    if (!STATUSES.includes(body.status)) throw bad(`status must be one of ${STATUSES.join(', ')}`);
+    const updated = await pool.query('UPDATE vocab SET status=$4 WHERE user_id=$1 AND lang=$2 AND word=$3', [user, lang, word, body.status]);
+    if (!updated.rowCount) throw bad('Word is not saved', 404);
+    res.json({ ok: true, status: body.status });
+  });
+
+  router.get('/vocab/revisit', requireUser, async (req, res) => {
+    const [user, lang] = identity(req, req.query);
+    const limit = integer(req.query.limit, 'limit', 3, 20);
+    const { rows } = await pool.query(`SELECT v.word,v.translation,v.note,v.status,v.video_id,v.video_ts,v.saved_at,
+      (SELECT count(*) FROM shadow_attempts a WHERE a.user_id=v.user_id AND a.lang=v.lang AND a.status='completed'
+        AND lower(trim(a.target_text))=lower(trim(v.word)) AND a.score<$4) AS misses
+      FROM vocab v WHERE v.user_id=$1 AND v.lang=$2 AND v.status<>'known'
+      ORDER BY misses DESC,v.saved_at,v.word LIMIT $3`, [user, lang, limit, MASTERY_SCORE]);
+    for (const row of rows) if (row.note === null) backfillNote(user, lang, row);
+    res.json({ words: numericRows(rows, ['misses']) });
+  });
+
+  router.get('/stats/summary', requireUser, async (req, res) => {
+    const [user, lang] = identity(req, req.query);
+    const [watched, mastery] = await Promise.all([
+      pool.query('SELECT coalesce(sum(watched_minutes),0) AS minutes FROM dashboard_activity WHERE user_id=$1 AND lang=$2', [user, lang]),
+      pool.query(`SELECT count(*) AS total,count(*) FILTER (WHERE status='known') AS mastered
+        FROM vocab WHERE user_id=$1 AND lang=$2`, [user, lang]),
+    ]);
+    const total = Number(mastery.rows[0].total), mastered = Number(mastery.rows[0].mastered);
+    res.json({ immersion: { hours: Number(watched.rows[0].minutes) / 60, goal_hours: IMMERSION_GOAL_HOURS },
+      mastery: { total, learning: total - mastered, mastered } });
+  });
+
+  router.get('/stats/videos', requireUser, async (req, res) => {
+    const [user, lang] = identity(req, req.query);
+    const limit = integer(req.query.limit, 'limit', 2, 20);
+    const { rows } = await pool.query(`SELECT video_id,count(*) AS events,max(time) AS last_time,
+      coalesce(sum(CASE WHEN event_type='caption_view' AND jsonb_typeof(meta->'watched_seconds')='number'
+        THEN (meta->>'watched_seconds')::numeric ELSE 0 END),0)/60.0 AS watched_minutes
+      FROM learning_events WHERE user_id=$1 AND lang=$2 AND video_id IS NOT NULL AND video_id<>''
+      GROUP BY video_id ORDER BY events DESC,last_time DESC LIMIT $3`, [user, lang, limit]);
+    const videos = numericRows(rows, ['events', 'watched_minutes']);
+    if (!videos.length) return res.json({ videos });
+    const [captions, lookups, saved] = await Promise.all([
+      pool.query('SELECT video_id,word FROM video_words WHERE lang=$1 AND video_id=ANY($2::text[])', [lang, videos.map(v => v.video_id)]),
+      pool.query(`SELECT DISTINCT word FROM learning_events
+        WHERE user_id=$1 AND lang=$2 AND event_type='lookup' AND word IS NOT NULL`, [user, lang]),
+      pool.query('SELECT word,status FROM vocab WHERE user_id=$1 AND lang=$2', [user, lang]),
+    ]);
+    // A caption word counts as known unless it was looked up or saved and has not been mastered since.
+    const tokens = list => new Set(list.flatMap(r => normalize(r.word)));
+    const unknown = tokens([...lookups.rows, ...saved.rows.filter(r => r.status !== 'known')]);
+    for (const word of tokens(saved.rows.filter(r => r.status === 'known'))) unknown.delete(word);
+    const byVideo = Map.groupBy(captions.rows, r => r.video_id);
+    res.json({ videos: videos.map(v => {
+      const words = byVideo.get(v.video_id) ?? [];
+      const known = words.filter(r => !unknown.has(r.word)).length;
+      return { ...v, total_words: words.length, known_words: known, known_pct: words.length ? known / words.length : null };
+    }) });
   });
 
   router.get('/stats/score-trend', requireUser, async (req, res) => {
@@ -241,6 +330,12 @@ export function createAttemptHandler(pool, { stt, scoreAttempt }) {
             (time,event_id,user_id,event_type,video_id,lang,score,attempt_id,meta)
             VALUES ($1,$2,$3,'shadow_attempt',$4,$5,$6,$2,$7)`,
           [time, attemptId, user, video, lang, score, JSON.stringify({ target_text: target, transcript: result.text, words, video_ts: videoTs })]);
+          // Practicing a saved phrase moves it to learning, then to known after enough good attempts.
+          await client.query(`UPDATE vocab v SET status=CASE WHEN (SELECT count(*) FROM shadow_attempts a
+              WHERE a.user_id=v.user_id AND a.lang=v.lang AND a.status='completed' AND a.score>=$4
+                AND lower(trim(a.target_text))=lower(trim(v.word)))>=$5 THEN 'known' ELSE 'learning' END
+            WHERE v.user_id=$1 AND v.lang=$2 AND lower(trim(v.word))=lower(trim($3)) AND v.status<>'known'`,
+          [user, lang, target, MASTERY_SCORE, MASTERY_ATTEMPTS]);
           return time;
         });
       } catch (error) {

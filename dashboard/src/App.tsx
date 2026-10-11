@@ -4,9 +4,8 @@ import { signOut, type Session } from './auth.ts';
 import { Card } from './components/Card.tsx';
 import { StatsActivity, HEATMAP_DAYS } from './components/StatsActivity.tsx';
 import { TopVideos } from './components/TopVideos.tsx';
-import { VocabList } from './components/VocabList.tsx';
-import { Resources } from './components/Resources.tsx';
-import { ScoreChart, SCORE_DAYS } from './components/ScoreChart.tsx';
+import { WordsToRevisit } from './components/WordsToRevisit.tsx';
+import { ImmersionHours, MasteryLevels } from './components/Progress.tsx';
 
 // Stats refresh often so extension activity shows up quickly; the video list is heavier and changes slowly.
 const STATS_INTERVAL = 5_000;
@@ -14,11 +13,14 @@ const VIDEOS_INTERVAL = 30_000;
 
 export function App({ user }: { user: Session['user'] }) {
   const activity = usePolling(useCallback((s: AbortSignal) => api.activity(HEATMAP_DAYS, s), []), STATS_INTERVAL);
-  const scores = usePolling(useCallback((s: AbortSignal) => api.scoreTrend(Math.max(HEATMAP_DAYS, SCORE_DAYS), s), []), STATS_INTERVAL);
-  const vocab = usePolling(api.vocab, STATS_INTERVAL);
-  const recent = usePolling(api.recent, VIDEOS_INTERVAL);
+  const scores = usePolling(useCallback((s: AbortSignal) => api.scoreTrend(HEATMAP_DAYS, s), []), STATS_INTERVAL);
+  const summary = usePolling(api.summary, STATS_INTERVAL);
+  const revisit = usePolling(api.revisit, STATS_INTERVAL);
+  const videos = usePolling(api.videos, VIDEOS_INTERVAL);
 
-  const statuses: Status[] = [activity.status, scores.status, vocab.status, recent.status];
+  const statuses: Status[] = [activity.status, scores.status, summary.status, revisit.status, videos.status];
+  // Marking a word mastered changes the revisit list, the mastery counts, and video coverage.
+  const onVocabChange = () => { revisit.refresh(); summary.refresh(); videos.refresh(); };
   const offline = statuses.some((s) => s === 'error' || s === 'stale');
 
   return (
@@ -29,8 +31,7 @@ export function App({ user }: { user: Session['user'] }) {
         </a>
         <h1 className="page-title">Overview</h1>
         <div className="account">
-          <span className="account-email" title={user.name ?? undefined}>{user.email}</span>
-          <button className="avatar" type="button" onClick={signOut} title="Sign out" aria-label={`Sign out ${user.email}`}>
+          <button className="avatar" type="button" onClick={signOut} title={`Sign out ${user.email}`} aria-label={`Sign out ${user.email}`}>
             <SignOutIcon />
           </button>
         </div>
@@ -50,24 +51,18 @@ export function App({ user }: { user: Session['user'] }) {
         )}
 
         <div className="grid">
-          <StatsActivity className="span-8" activity={activity} scores={scores} vocab={vocab} />
-          <Card className="span-4" title="Top Study Videos" status={recent.status}>
-            <TopVideos events={recent.data} />
+          <StatsActivity className="span-7" activity={activity} scores={scores} summary={summary} />
+          <Card className="span-5" title="Top Study Videos" status={videos.status}>
+            <TopVideos videos={videos.data} />
           </Card>
 
-          <Card className="span-8" title="Vocab Lists" status={vocab.status}>
-            <VocabList words={vocab.data} />
+          <Card className="span-5" title="Words To Revisit" status={revisit.status}>
+            <WordsToRevisit words={revisit.data} onChange={onVocabChange} />
           </Card>
-          <Card className="span-4" title="User Leaderboard">
-            <p className="empty">Leaderboards are coming once accounts are added.</p>
-          </Card>
-
-          <Card className="span-5" title="More Resources">
-            <Resources />
-          </Card>
-          <Card className="span-7" title="Intelligibility Score" status={scores.status}>
-            <ScoreChart points={scores.data} />
-          </Card>
+          <div className="span-7 olive-stack">
+            <ImmersionHours summary={summary} />
+            <MasteryLevels summary={summary} />
+          </div>
         </div>
       </main>
     </div>
