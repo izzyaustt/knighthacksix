@@ -12,7 +12,7 @@ export type Settings = {
 
 export const DEFAULT_SETTINGS: Settings = {
   backendUrl: import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000',
-  dashboardUrl: import.meta.env.VITE_DASHBOARD_URL || 'http://localhost:5173',
+  dashboardUrl: import.meta.env.VITE_DASHBOARD_URL || 'https://langtube-dashboard.vercel.app',
   langSrc: 'en',
   langTgt: 'es',
   level: 'A2',
@@ -20,16 +20,18 @@ export const DEFAULT_SETTINGS: Settings = {
 
 export async function getSettings(): Promise<Settings> {
   const got = (await chrome.storage.local.get('settings')) as { settings?: Partial<Settings> };
+  const savedDashboardUrl = got.settings?.dashboardUrl;
+  const useDefaultDashboard = !savedDashboardUrl || /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(?=[:/]|$)/i.test(savedDashboardUrl);
   return { ...DEFAULT_SETTINGS, ...got.settings,
     langTgt: isLanguage(got.settings?.langTgt) ? got.settings.langTgt : 'es',
     ...(import.meta.env.VITE_BACKEND_URL ? { backendUrl: DEFAULT_SETTINGS.backendUrl } : {}),
-    ...(import.meta.env.VITE_DASHBOARD_URL ? { dashboardUrl: DEFAULT_SETTINGS.dashboardUrl } : {}),
+    ...(import.meta.env.VITE_DASHBOARD_URL || useDefaultDashboard ? { dashboardUrl: DEFAULT_SETTINGS.dashboardUrl } : {}),
   };
 }
 
 export type DashboardContext = { videoId?: string | null; t?: number; range?: string };
 
-/** e.g. http://localhost:5173/?video_id=dQw4w9WgXcQ&t=83&range=24h (the dashboard signs in on its own) */
+/** Open the dashboard with video context; the dashboard signs in on its own. */
 export function dashboardLink(s: Settings, ctx: DashboardContext): string {
   const u = new URL(s.dashboardUrl);
   if (ctx.videoId) u.searchParams.set('video_id', ctx.videoId);

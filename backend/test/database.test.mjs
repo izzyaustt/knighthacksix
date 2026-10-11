@@ -114,8 +114,8 @@ test('HTTP routes persist attempts, deduplicate retries, and feed dashboard stat
     await saveVideoWords(adapter, video, 'es', [{ target: '¡Hola, mundo!' }, { target: 'Gracias, amigo. Hola.' }]);
     assert.equal((await post('/events', { event_type: 'caption_view', video_id: video, meta: { watched_seconds: 60 } })).status, 200);
     const coverage = async () => (await request('/stats/videos' + query)).body.videos.find(v => v.video_id === video);
-    // "hola" was looked up and saved, so 3 of the 4 caption words count as known.
-    assert.deepEqual([(await coverage()).total_words, (await coverage()).known_pct, (await coverage()).watched_minutes], [4, 0.75, 1]);
+    // No words have been mastered: untouched caption words are not assumed known.
+    assert.deepEqual([(await coverage()).total_words, (await coverage()).known_pct, (await coverage()).watched_minutes], [4, 0, 1]);
 
     async function perfectAttempt() {
       const form = new FormData();
@@ -130,7 +130,7 @@ test('HTTP routes persist attempts, deduplicate retries, and feed dashboard stat
     assert.equal(await perfectAttempt(), 'known');
     assert.deepEqual(await revisit(), []);
     assert.deepEqual((await summary()).mastery, { total: 1, learning: 0, mastered: 1 });
-    assert.equal((await coverage()).known_pct, 1);
+    assert.equal((await coverage()).known_pct, 0.25);
 
     assert.equal((await patch({ word: 'hola', status: 'learning' })).status, 200);
     assert.equal((await revisit()).length, 1);

@@ -44,7 +44,7 @@ export type VideoStat = {
   last_time: string;
   watched_minutes: number;
   total_words: number;
-  known_pct: number | null; // 0-1; null until the video's captions have been translated
+  known_pct: number | null; // Marked-learned fraction of recorded caption vocabulary, not video comprehension.
 };
 
 export type Summary = {
