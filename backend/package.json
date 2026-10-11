@@ -12,6 +12,9 @@
     "start:ollama": "node start-provider.mjs ollama",
     "start:gemini": "node start-provider.mjs gemini",
     "test:ai": "node --test test/ai-provider.test.mjs",
+    "setup:study": "node setup-study-agent.mjs",
+    "test:study": "node --test test/study.test.mjs",
+    "check:study": "node check-study.mjs",
     "check:ai": "node check-ai.mjs"
   },
   "engines": {
