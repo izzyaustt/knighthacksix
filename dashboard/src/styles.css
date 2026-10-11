@@ -180,7 +180,7 @@ button { font: inherit; }
 .chart-note { font-size: 12px; color: var(--ink-3); margin: 4px 0 0; }
 
 /* Conversation practice */
-.study-page { max-width: 1080px; margin: 0 auto; }
+.study-page { max-width: 1080px; margin: 0 auto; padding-top: 16px; }
 .study-tutor-card { max-width: 600px; background: var(--surface); border-radius: var(--radius); padding: 28px; }
 .study-tutor-card h3 { font-size: 24px; margin: 12px 0; }
 .study-tutor-card p { color: var(--ink-2); line-height: 1.6; }
@@ -219,3 +219,107 @@ button { font: inherit; }
 .study-message strong { color: var(--olive-ink); font-size: 12px; }
 .study-message p { margin: 6px 0 0; line-height: 1.6; }
 @media (max-width: 850px) { .study-layout { grid-template-columns: 1fr; } }
+
+/* ---------- Flashcards (Study page) ---------- */
+
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* Word list and Tutor stack on the left; the flashcards are the main column. */
+.study-deck {
+  display: grid; grid-template-columns: 260px minmax(0, 1fr); grid-template-rows: auto 1fr;
+  grid-template-areas: 'drawer deck' 'tutor deck'; gap: 20px 24px; align-items: start;
+}
+.study-deck .vocab-drawer { grid-area: drawer; }
+.study-deck .deck-main { grid-area: deck; }
+.study-deck .study-tutor-card { grid-area: tutor; padding: 20px; }
+.study-deck .study-tutor-card h3 { font-size: 20px; margin: 8px 0; }
+.study-deck .study-tutor-card p { font-size: 14px; margin: 0 0 16px; }
+
+/* contain: size keeps a long list from setting the row height: the drawer matches the deck and scrolls. */
+.vocab-drawer { background: var(--surface); border-radius: var(--radius); padding: 12px; display: flex; flex-direction: column; min-width: 0; max-height: 420px; }
+.drawer-closed .vocab-drawer { padding: 0; background: none; }
+.vocab-drawer-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 0 8px 4px; }
+.drawer-closed .vocab-drawer-head { padding: 0; }
+.vocab-drawer-head .section-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.vocab-drawer-toggle { flex: none; width: 36px; height: 36px; display: grid; place-items: center; border: 0; border-radius: 8px; background: var(--heat-0); color: var(--olive-ink); cursor: pointer; }
+.vocab-drawer-toggle:hover { background: var(--line); }
+.drawer-closed .vocab-drawer-toggle { width: 100%; justify-content: space-between; height: 44px; display: flex; align-items: center; gap: 6px; padding: 0 10px 0 14px; background: var(--surface); border-radius: var(--radius); font-size: 14px; font-weight: 700; white-space: nowrap; }
+.drawer-closed .vocab-drawer-toggle:hover { background: var(--heat-0); }
+.vocab-drawer-list { list-style: none; margin: 0; padding: 0; overflow-y: auto; display: grid; gap: 2px; }
+.vocab-drawer-list[hidden] { display: none; }
+.vocab-drawer-list button { width: 100%; text-align: left; border: 0; border-left: 3px solid transparent; border-radius: 8px; background: none; padding: 8px 10px; cursor: pointer; color: var(--ink); min-height: 44px; }
+.vocab-drawer-list button:hover { background: var(--heat-0); }
+.vocab-drawer-list button[aria-current='true'] { background: var(--heat-0); border-left-color: var(--olive); }
+.vocab-drawer-list strong { display: block; font-size: 14px; overflow-wrap: anywhere; }
+.vocab-drawer-list span { display: block; font-size: 12px; color: var(--ink-3); overflow-wrap: anywhere; }
+
+.deck-main { min-width: 0; }
+.deck-stage { display: grid; grid-template-columns: 44px minmax(0, 1fr) 44px; align-items: center; gap: 12px; max-width: 720px; margin: 0 auto; }
+.deck-arrow { width: 44px; height: 64px; padding: 0; display: grid; place-items: center; border: 0; background: none; color: var(--pink); cursor: pointer; border-radius: 10px; }
+.deck-arrow:hover:not(:disabled) { background: #fdecee; }
+.deck-arrow:disabled { opacity: .3; cursor: default; }
+.deck-hint { text-align: center; font-size: 12px; font-style: italic; color: var(--olive-ink); margin: 12px 0 20px; }
+
+/* A fixed height keeps the card steady across flips and words; a long back scrolls inside. */
+.flashcard { display: grid; perspective: 1400px; }
+.flashcard-face {
+  grid-area: 1 / 1; height: 340px; background: var(--surface); border-radius: 20px; border: 0;
+  box-shadow: 0 1px 2px rgb(30 35 20 / .04), 0 8px 24px rgb(30 35 20 / .06);
+  backface-visibility: hidden; transition: transform .45s ease; color: var(--ink); font: inherit; text-align: left;
+}
+.flashcard-front { display: grid; place-items: center; padding: 32px; cursor: pointer; }
+.flashcard-front:hover { box-shadow: 0 1px 2px rgb(30 35 20 / .04), 0 12px 32px rgb(30 35 20 / .1); }
+.flashcard-back { transform: rotateY(180deg); padding: 24px 28px; cursor: pointer; overflow-y: auto; overscroll-behavior: contain; }
+/* Fades the bottom edge so a long back reads as scrollable. */
+.flashcard-back::after { content: ''; position: sticky; bottom: -24px; display: block; height: 32px; margin: 0 -28px -24px; background: linear-gradient(transparent, var(--surface)); pointer-events: none; }
+.flashcard.flipped .flashcard-front { transform: rotateY(-180deg); }
+.flashcard.flipped .flashcard-back { transform: rotateY(0); cursor: auto; }
+@media (prefers-reduced-motion: reduce) { .flashcard-face { transition: none; } }
+
+.flashcard-word { font-size: 48px; font-weight: 800; text-align: center; overflow-wrap: anywhere; }
+.flashcard-word.medium { font-size: 36px; }
+.flashcard-word.long { font-size: 26px; }
+.flashcard-back-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.study-page .flashcard-back-word { margin: 0; color: var(--ink); font-size: 30px; font-weight: 800; overflow-wrap: anywhere; }
+.study-page .flashcard-back-word.medium, .study-page .flashcard-back-word.long { font-size: 22px; }
+.flashcard-gloss { margin: 2px 0 0; font-size: 17px; color: var(--olive-ink); font-weight: 700; }
+.flashcard-grammar { margin: 12px 0; line-height: 1.5; color: var(--ink-2); }
+.flashcard-pron { padding: 12px 14px; border-radius: 12px; background: var(--heat-0); font-size: 13px; line-height: 1.5; }
+.flashcard-pron p { margin: 0 0 4px; }
+.flashcard-pron p:last-child { margin: 0; }
+.flashcard-details { margin: 16px 0 0; display: grid; gap: 4px; }
+.flashcard-details dt { font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--olive-ink); margin-top: 8px; }
+.flashcard-details dd { margin: 0; line-height: 1.55; font-size: 14px; }
+.flashcard-source { display: inline-block; margin-top: 16px; font-size: 13px; font-weight: 700; color: var(--olive-ink); }
+
+/* Say it: listen, record and score */
+/* Same width as the card between the deck arrows. */
+.say-it { max-width: calc(720px - 112px); margin: 0 auto; background: var(--surface); border-radius: var(--radius); padding: 20px; }
+.say-it button { min-height: 44px; padding: 10px 16px; border-radius: 10px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; }
+.say-it button:disabled { opacity: .5; cursor: default; }
+.say-it-listen { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
+.say-it-row { display: flex; align-items: center; gap: 16px; }
+.say-it .say-it-mic { flex: none; width: 64px; height: 64px; padding: 0; border-radius: 50%; justify-content: center; border: 0; background: var(--olive-ink); color: #fff; }
+.say-it .say-it-mic[aria-pressed='true'] { background: #c2414f; animation: study-pulse 1.5s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .say-it .say-it-mic[aria-pressed='true'] { animation: none; } }
+.say-it-word { margin: 0; font-size: 20px; font-weight: 800; overflow-wrap: anywhere; }
+.say-it-hint, .say-it-status { margin: 4px 0 0; font-size: 13px; color: var(--ink-2); }
+.say-it-attempt { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--line); font-size: 14px; line-height: 1.5; }
+.say-it-attempt p { margin: 6px 0; }
+.say-it-attempt-head { display: flex; justify-content: space-between; align-items: baseline; font-weight: 700; }
+.say-it-attempt-head strong { font-size: 24px; color: var(--olive-ink); }
+.say-it-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.say-it-chips span { padding: 3px 10px; border-radius: 999px; font-size: 13px; font-weight: 700; background: #fdecee; color: #8a2f3b; }
+.say-it-chips span[data-status='correct'] { background: #e9f0d6; color: var(--olive-ink); }
+
+@media (max-width: 850px) {
+  .study-deck { grid-template-columns: 1fr; grid-template-areas: 'drawer' 'deck' 'tutor'; grid-template-rows: auto; }
+  .vocab-drawer { max-height: 320px; }
+  .study-deck .study-tutor-card { max-width: none; }
+  .deck-stage { grid-template-columns: 36px minmax(0, 1fr) 36px; gap: 6px; }
+  .deck-arrow { width: 36px; }
+  .say-it { max-width: none; }
+  .flashcard-face { height: 360px; }
+  .flashcard-back { padding: 20px; }
+  .flashcard-back::after { bottom: -20px; margin: 0 -20px -20px; }
+}
