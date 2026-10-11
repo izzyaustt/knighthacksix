@@ -207,20 +207,16 @@ export function createDataRouter(pool, requireUser, { explain } = {}) {
       GROUP BY video_id ORDER BY events DESC,last_time DESC LIMIT $3`, [user, lang, limit]);
     const videos = numericRows(rows, ['events', 'watched_minutes']);
     if (!videos.length) return res.json({ videos });
-    const [captions, lookups, saved] = await Promise.all([
+    const [captions, saved] = await Promise.all([
       pool.query('SELECT video_id,word FROM video_words WHERE lang=$1 AND video_id=ANY($2::text[])', [lang, videos.map(v => v.video_id)]),
-      pool.query(`SELECT DISTINCT word FROM learning_events
-        WHERE user_id=$1 AND lang=$2 AND event_type='lookup' AND word IS NOT NULL`, [user, lang]),
       pool.query('SELECT word,status FROM vocab WHERE user_id=$1 AND lang=$2', [user, lang]),
     ]);
-    // A caption word counts as known unless it was looked up or saved and has not been mastered since.
-    const tokens = list => new Set(list.flatMap(r => normalize(r.word)));
-    const unknown = tokens([...lookups.rows, ...saved.rows.filter(r => r.status !== 'known')]);
-    for (const word of tokens(saved.rows.filter(r => r.status === 'known'))) unknown.delete(word);
+    // Unseen and unpracticed words are unassessed, never assumed learned.
+    const mastered = new Set(saved.rows.filter(r => r.status === 'known').flatMap(r => normalize(r.word)));
     const byVideo = Map.groupBy(captions.rows, r => r.video_id);
     res.json({ videos: videos.map(v => {
       const words = byVideo.get(v.video_id) ?? [];
-      const known = words.filter(r => !unknown.has(r.word)).length;
+      const known = words.filter(r => mastered.has(r.word)).length;
       return { ...v, total_words: words.length, known_words: known, known_pct: words.length ? known / words.length : null };
     }) });
   });

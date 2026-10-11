@@ -30,7 +30,7 @@ export function TopVideos({ videos }: { videos: VideoStat[] | undefined }) {
         <li key={v.video_id}>
           <a className="video" href={`https://www.youtube.com/watch?v=${v.video_id}`} target="_blank" rel="noreferrer">
             <p className="video-known">
-              {v.known_pct === null ? 'Keep watching to see how much you know' : `You know ${Math.round(v.known_pct * 100)}% of this video`}
+              {v.known_pct === null ? 'Caption vocabulary hasn’t loaded yet' : `${Math.round(v.known_pct * 100)}% of recorded caption words marked learned`}
             </p>
             <img src={`https://i.ytimg.com/vi/${v.video_id}/mqdefault.jpg`} alt="" loading="lazy" />
             <div>
