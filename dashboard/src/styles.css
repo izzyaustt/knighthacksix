@@ -219,3 +219,15 @@ button { font: inherit; }
 .study-message strong { color: var(--olive-ink); font-size: 12px; }
 .study-message p { margin: 6px 0 0; line-height: 1.6; }
 @media (max-width: 850px) { .study-layout { grid-template-columns: 1fr; } }
+
+.study-feedback { margin-top: 24px; padding: 24px; background: var(--surface); border-radius: var(--radius); }
+.study-feedback p { line-height: 1.6; }
+.study-feedback-note { padding: 12px 16px; background: var(--heat-0); color: var(--ink-2); border-radius: 12px; }
+.study-feedback button { padding: 12px 18px; border-radius: 10px; font: inherit; cursor: pointer; }
+.study-rating strong { color: var(--olive-ink); font-size: 32px; }
+.study-rating-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin: 20px 0; }
+.study-rating-grid > div, .study-review-word { padding: 16px; border: 1px solid var(--line); border-radius: 12px; }
+.study-review-word { margin-top: 12px; }
+.study-review-word h4 { margin: 0; color: var(--olive-ink); font-size: 20px; }
+.study-review-word h4 span { font-weight: 400; color: var(--ink-2); }
+@media (max-width: 600px) { .study-rating-grid { grid-template-columns: 1fr; } }

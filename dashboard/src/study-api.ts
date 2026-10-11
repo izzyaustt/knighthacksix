@@ -3,6 +3,13 @@ import { BACKEND_URL, getSession, signOut } from './auth.ts';
 export type Scenario = { id: string; title: string; description: string };
 export type StudyConfig = { available: boolean; max_duration_seconds: number; scenarios: Scenario[] };
 export type StudySession = { signed_url: string; max_duration_seconds: number; dynamic_variables: Record<string, string> };
+export type StudyMessage = { source: 'user' | 'ai'; text: string };
+export type StudyReview = {
+  status: 'completed' | 'insufficient'; score: number | null; summary: string;
+  vocabulary_warning?: string;
+  ratings: Record<string, { score: number; feedback: string }> | null;
+  struggles: { kind?: 'grammar' | 'vocabulary'; word: string; translation: string; reason: string; better_reply: string; question: string; reply: string }[];
+};
 async function request<T>(path: string, signal: AbortSignal, body?: object): Promise<T> {
   const session = getSession();
   const response = await fetch(new URL(path, BACKEND_URL), {
@@ -17,3 +24,4 @@ async function request<T>(path: string, signal: AbortSignal, body?: object): Pro
 }
 export const studyConfig = (signal: AbortSignal, lang: Language = 'es') => request<StudyConfig>(`/study/config?lang=${lang}`, signal);
 export const studySession = (scenario: string, level: string, signal: AbortSignal, lang: Language = 'es') => request<StudySession>('/study/session', signal, { scenario, level, lang });
+export const studyReview = (body: { review_id: string; lang: Language; scenario: string; level: string; messages: StudyMessage[] }, signal: AbortSignal) => request<StudyReview>('/study/review', signal, body);
