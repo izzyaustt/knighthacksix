@@ -4,13 +4,14 @@ import type { Language } from '../../../shared/languages.ts';
 import { scoreAttempt, speechUrl, type Attempt } from '../practice-api.ts';
 
 const MAX_SECONDS = 15;
+type Message = { text: string; tone?: 'turn' | 'error' };
 type Phase = 'ready' | 'permission' | 'recording' | 'checking';
 
 /** Listen, record, and score, like the extension's "Say it" section. Remount (key) it per word. */
 export function SayIt({ word, language }: { word: VocabWord; language: Language }) {
   const [phase, setPhase] = useState<Phase>('ready');
   const [seconds, setSeconds] = useState(0);
-  const [message, setMessage] = useState('');
+  const [message, setMessage] = useState<Message | null>(null);
   const [attempt, setAttempt] = useState<Attempt | null>(null);
   const [recordingUrl, setRecordingUrl] = useState<string | null>(null);
   const audio = useRef<HTMLAudioElement | null>(null);
@@ -31,17 +32,17 @@ export function SayIt({ word, language }: { word: VocabWord; language: Language 
 
   const play = async (src: Promise<string> | string, status: string) => {
     audio.current?.pause();
-    setMessage('Loading pronunciation…');
+    setMessage({ text: 'Loading pronunciation…' });
     try {
       const url = await src;
       if (!alive.current) return;
       const playback = new Audio(url);
       audio.current = playback;
-      playback.onended = () => { if (audio.current === playback) setMessage('Your turn: tap the mic and say it.'); };
+      playback.onended = () => { if (audio.current === playback) setMessage({ text: 'Your turn: tap the mic and say it.', tone: 'turn' }); };
       await playback.play();
-      setMessage(status);
+      setMessage({ text: status });
     } catch (error) {
-      if (alive.current) setMessage((error as Error).message);
+      if (alive.current) setMessage({ text: (error as Error).message, tone: 'error' });
     }
   };
 
@@ -53,7 +54,8 @@ export function SayIt({ word, language }: { word: VocabWord; language: Language 
   const record = async () => {
     if (phase === 'recording') { stop(); return; }
     audio.current?.pause();
-    setMessage('');
+    setMessage(null);
+    setAttempt(null); // a new try replaces the last result
     setPhase('permission');
     let stream: MediaStream | undefined;
     try {
@@ -78,7 +80,10 @@ export function SayIt({ word, language }: { word: VocabWord; language: Language 
           const result = await scoreAttempt(blob, word.word, language, { id: word.video_id, ts: word.video_ts });
           if (alive.current) setAttempt(result);
         } catch (error) {
-          if (alive.current) setMessage(`Recording failed: ${(error as Error).message}`);
+          if (!alive.current) return;
+          // A silent recording is a retry, not a failure (the backend's wording also tells the extension user to move closer).
+          const text = /no speech was detected/i.test((error as Error).message) ? 'No speech was detected. Try again.' : `Recording failed: ${(error as Error).message}`;
+          setMessage({ text, tone: 'error' });
         } finally {
           if (alive.current) setPhase('ready');
         }
@@ -96,7 +101,7 @@ export function SayIt({ word, language }: { word: VocabWord; language: Language 
       stream?.getTracks().forEach((t) => t.stop());
       if (!alive.current) return;
       setPhase('ready');
-      setMessage(`Microphone unavailable: ${(error as Error).message}. Allow microphone access for this site and try again.`);
+      setMessage({ text: `Microphone unavailable: ${(error as Error).message}. Allow microphone access for this site and try again.`, tone: 'error' });
     }
   };
 
@@ -105,7 +110,10 @@ export function SayIt({ word, language }: { word: VocabWord; language: Language 
     : phase === 'recording' ? `Recording… ${seconds} / ${MAX_SECONDS} seconds. Tap the mic again to stop.`
     : phase === 'checking' ? 'Checking your recording…'
     : `Tap the mic and say the word. Up to ${MAX_SECONDS} seconds.`;
-  const retry = attempt?.words.filter((w) => w.status !== 'correct').map((w) => w.word) ?? [];
+  const missed = attempt?.words.filter((w) => w.status !== 'correct') ?? [];
+  const feedback = !missed.length ? 'Nice! You said it right.'
+    : missed.length === 1 && missed[0].heard ? `Almost! Heard “${missed[0].heard}”. Try again.`
+    : `Almost! Missed ${missed.map((w) => `“${w.word}”`).join(', ')}. Try again.`;
 
   return (
     <section className="say-it" aria-label="Pronunciation practice">
@@ -128,22 +136,17 @@ export function SayIt({ word, language }: { word: VocabWord; language: Language 
           <p className="say-it-hint" role="status">{hint}</p>
         </div>
       </div>
-      {message && <p className="say-it-status" role="status">{message}</p>}
+      {message && <p className={`say-it-status${message.tone ? ` ${message.tone}` : ''}`} role={message.tone === 'error' ? 'alert' : 'status'}>{message.text}</p>}
 
       {attempt && (
         <div className="say-it-attempt">
-          <div className="say-it-attempt-head"><span>Your attempt</span><strong>{Math.round(attempt.score * 100)}%</strong></div>
-          <div className="say-it-chips">
-            {attempt.words.map((w, i) => (
-              <span key={i} data-status={w.status}>
-                {w.status === 'correct' ? `${w.word} ✓` : `${w.word} · ${w.heard ? `heard “${w.heard}”` : 'missed'}`}
-              </span>
-            ))}
+          <p className={`say-it-status say-it-result ${missed.length ? 'error' : 'turn'}`} role="status">
+            <span>{feedback}</span><strong>{Math.round(attempt.score * 100)}%</strong>
+          </p>
+          <div className="say-it-attempt-foot">
+            <span className="muted">Heard: {attempt.transcript || '(nothing)'}{attempt.event_saved ? '' : ' · not saved to your progress'}</span>
+            {recordingUrl && <button className="study-secondary" type="button" disabled={busy} onClick={() => play(recordingUrl, 'Playing your recording…')}>Hear yours</button>}
           </div>
-          <p>Heard: {attempt.transcript || '(nothing)'}</p>
-          <p>{retry.length ? `Listen slowly, then retry: ${retry.join(', ')}.` : 'All target words were recognized. Try again at normal speed.'}</p>
-          <p className="muted">This compares the transcript rather than grading your accent. {attempt.event_saved ? 'Saved to your progress.' : 'Feedback received, but progress was not saved.'}</p>
-          {recordingUrl && <button className="study-secondary" type="button" disabled={busy} onClick={() => play(recordingUrl, 'Playing your recording…')}>Hear yours</button>}
         </div>
       )}
     </section>
