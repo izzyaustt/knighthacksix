@@ -91,6 +91,27 @@ const HTML = `
   <footer><button type="button" class="dash-link">Open dashboard <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 01-1 1H5a1 1 0 01-1-1V7a1 1 0 011-1h5"></path></svg></button></footer>
  </div>
 
+ <div class="view tour" id="view-tour" hidden>
+  <header>
+    <div class="titles"><img class="tour-logo" src="${LOGO_FULL}" alt="langtube"></div>
+    <button type="button" class="icon sign-out" aria-label="Sign out" title="Sign out"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 4h3a2 2 0 012 2v12a2 2 0 01-2 2h-3"></path><path d="M10 16l-4-4 4-4M6 12h10"></path></svg></button>
+    <button type="button" class="icon collapse-panel" aria-label="Collapse panel" title="Collapse"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 17l5-5-5-5M6 17l5-5-5-5"></path></svg></button>
+  </header>
+  <h1 class="tour-title">Learn from videos you already love.</h1>
+  <p class="tour-sub">Five simple steps to turn watching into speaking.</p>
+  <div class="tour-visual" id="tour-visual"></div>
+  <div class="tour-callout" role="status">
+    <span class="tour-count" id="tour-count"></span>
+    <h2 id="tour-heading"></h2>
+    <p id="tour-text"></p>
+  </div>
+  <div class="tour-dots" id="tour-dots" aria-hidden="true"></div>
+  <div class="tour-nav">
+    <div class="tour-links"><button type="button" class="tour-back" id="tour-back">Back</button><button type="button" class="tour-skip" id="tour-skip">Skip tour</button></div>
+    <button type="button" class="tour-next" id="tour-next"></button>
+  </div>
+ </div>
+
  <div class="view lookup" id="view-lookup" hidden>
   <div class="topbar">
     <button type="button" class="icon" id="lookup-back" aria-label="Back to subtitles">
@@ -105,7 +126,44 @@ const HTML = `
 </aside>
 <button type="button" class="bubble" id="bubble" aria-label="Expand langtube panel" title="langtube" hidden><img src="${LOGO_MARK}" alt="" width="26" height="30"></button>`;
 
+// First-run tutorial. Static markup only: nothing here comes from the page or the network.
+const heat = Array.from({ length: 48 }, (_, i) => `<s class="h${(i * 7 + (i % 5)) % 4}"></s>`).join('');
+const TOUR_STEPS: { title: string; text: string; visual: string }[] = [
+  {
+    title: 'Go to any YouTube video',
+    text: 'Open a video you want to understand. Langtube will add interactive captions as it plays.',
+    visual: `<div class="t-video"><div class="t-video-title">How to cook a quick Spanish dinner</div><div class="t-video-bar"><span class="t-play"></span><span class="t-track"><i></i></span><span class="t-time">0:18 / 8:42</span></div></div>
+      <div class="t-meta"><strong>Learn Spanish while you cook</strong><span>Cocina Fácil · 248K views</span></div>`,
+  },
+  {
+    title: 'Click a colored word',
+    text: 'Choose any highlighted word in the pop-up caption to pause the video and take a closer look.',
+    visual: `<div class="t-stage"><div class="t-caption">Hoy vamos a <mark class="c1">cocinar</mark> algo <mark class="c2">delicioso</mark></div></div>
+      <div class="t-hint">↑ Tap a colored word</div>`,
+  },
+  {
+    title: 'See it, hear it, say it',
+    text: 'View the translation and pronunciation, then practice pronouncing the word out loud.',
+    visual: `<div class="t-word"><span class="t-eyebrow">SPANISH</span><span class="t-big">cocinar</span><span class="t-pron">koh-see-NAR</span><div class="t-rule"></div><div class="t-row"><strong>to cook</strong><span>verb</span></div>
+      <span class="t-speaker"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5L6 9H3v6h3l5 4z"></path><path d="M15.5 8.5a5 5 0 010 7M18.5 5.5a9 9 0 010 13"></path></svg></span></div><div class="t-bar"></div>`,
+  },
+  {
+    title: 'Save words for later',
+    text: 'Save useful words with one click so you can come back and practice them anytime.',
+    visual: `<div class="t-save"><div class="t-save-card"><div><strong class="t-big sm">cocinar</strong><span>to cook</span></div>
+      <span class="t-bookmark"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6 3h12v18l-6-4-6 4z"></path></svg></span></div>
+      <div class="t-saved"><span class="t-check">✓</span> Saved to your word list</div></div>`,
+  },
+  {
+    title: 'Visit your dashboard',
+    text: 'See your language stats, review saved words, and open all of your study tools in one place.',
+    visual: `<div class="t-dash"><div class="t-dash-side"><i class="on">Dashboard</i><i>Study</i></div>
+      <div class="t-dash-main"><div class="t-dash-head">Overview</div><div class="t-dash-grid">${heat}</div><div class="t-dash-olive">Mastery Levels</div></div></div>`,
+  },
+];
+
 const SESSION_KEY = 'session'; // written by auth.ts in the service worker
+const TOUR_KEY = 'll:tourDone';
 const FONTS_ID = 'll-fonts';
 const FONTS_URL = 'https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&family=Caveat:wght@600&display=swap';
 
@@ -164,6 +222,8 @@ export function createPanel(deps: PanelDeps): PanelController {
   // The service worker owns the Google session (auth.ts); the panel only asks and listens for changes.
   let signedIn = false;
   let lookupOpen = false;
+  let tourDone = true; // flipped to false below if this is a first run
+  let tourStep = 0;
   let authRevision = 0;
   try {
     const revision = authRevision;
@@ -179,12 +239,45 @@ export function createPanel(deps: PanelDeps): PanelController {
     document.head.append(link);
   }
 
+  try {
+    void chrome.storage.local.get(TOUR_KEY).then((got) => { tourDone = !!got[TOUR_KEY]; renderView(); }).catch(() => {});
+  } catch { /* orphaned after extension reload */ }
+
   wire();
   renderView();
 
   function renderView() {
-    const view = !signedIn ? 'signin' : lookupOpen ? 'lookup' : 'home';
-    for (const name of ['signin', 'home', 'lookup']) $(`view-${name}`).hidden = name !== view;
+    const view = !signedIn ? 'signin' : lookupOpen ? 'lookup' : !tourDone ? 'tour' : 'home';
+    for (const name of ['signin', 'home', 'tour', 'lookup']) $(`view-${name}`).hidden = name !== view;
+    if (view === 'tour') renderTour();
+  }
+
+  /* ---------- first-run tour ---------- */
+
+  function renderTour() {
+    const step = TOUR_STEPS[tourStep];
+    const last = tourStep === TOUR_STEPS.length - 1;
+    $('tour-visual').innerHTML = step.visual;
+    $('tour-count').textContent = `${tourStep + 1} OF ${TOUR_STEPS.length}`;
+    $('tour-heading').textContent = step.title;
+    $('tour-text').textContent = step.text;
+    $('tour-dots').replaceChildren(...TOUR_STEPS.map((_, i) => {
+      const dot = document.createElement('span');
+      if (i === tourStep) dot.className = 'on';
+      return dot;
+    }));
+    $('tour-back').hidden = tourStep === 0;
+    $('tour-skip').hidden = last;
+    const next = $('tour-next');
+    next.textContent = last ? 'Get started ' : 'Next ';
+    next.insertAdjacentHTML('beforeend', '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"></path></svg>');
+  }
+
+  function finishTour() {
+    tourDone = true;
+    tourStep = 0;
+    renderView();
+    try { void chrome.storage.local.set({ [TOUR_KEY]: true }); } catch { /* orphaned */ }
   }
 
   /* ---------- data ---------- */
@@ -193,6 +286,7 @@ export function createPanel(deps: PanelDeps): PanelController {
     if (area !== 'local') return;
     const nextLanguage = (changes.settings?.newValue as { langTgt?: unknown } | undefined)?.langTgt;
     if (isLanguage(nextLanguage)) { languageSelect.value = nextLanguage; showLanguageNote(); }
+    if (TOUR_KEY in changes) { tourDone = !!changes[TOUR_KEY].newValue; renderView(); }
     // Signed in from another tab, signed out, or the backend rejected an expired session.
     if (SESSION_KEY in changes) {
       authRevision++;
@@ -286,6 +380,11 @@ export function createPanel(deps: PanelDeps): PanelController {
     $('brand-link').addEventListener('click', openDashboard);
     for (const a of shadow.querySelectorAll('[data-todo]')) a.addEventListener('click', (e) => e.preventDefault());
     $('signin').addEventListener('click', signIn);
+    $('tour-back').addEventListener('click', () => { tourStep = Math.max(0, tourStep - 1); renderTour(); });
+    $('tour-skip').addEventListener('click', () => finishTour());
+    $('tour-next').addEventListener('click', () => {
+      if (tourStep < TOUR_STEPS.length - 1) { tourStep++; renderTour(); } else finishTour();
+    });
     for (const b of shadow.querySelectorAll('.sign-out')) b.addEventListener('click', signOut);
     $('lookup-back').addEventListener('click', () => {
       lookupOpen = false;
@@ -309,7 +408,7 @@ export function createPanel(deps: PanelDeps): PanelController {
     try {
       const r = await chrome.runtime.sendMessage({ type: 'signin' });
       if (!r?.ok) throw new Error(r?.error ?? 'Sign-in failed.');
-      if (revision === authRevision) { signedIn = true; renderView(); }
+      if (revision === authRevision) { signedIn = true; tourDone = false; tourStep = 0; renderView(); }
     } catch (e) {
       error.textContent = e instanceof Error ? e.message : String(e);
       error.hidden = false;
@@ -335,6 +434,10 @@ export function createPanel(deps: PanelDeps): PanelController {
 
   function showSignIn() {
     signedIn = false;
+    // Demo behavior: the tutorial plays again after every sign-in.
+    tourDone = false;
+    tourStep = 0;
+    try { void chrome.storage.local.remove(TOUR_KEY); } catch { /* orphaned */ }
     lookupOpen = false;
     deps.onLookupBack?.();
     renderView();
