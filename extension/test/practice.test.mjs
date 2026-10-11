@@ -84,10 +84,21 @@ test('recording blocks reference playback, returns feedback and releases the mic
   assert.equal(f.mic().getAttribute('aria-pressed'), 'true');
   f.mic().click(); await tick(); await tick();
   assert.ok(released > 0);
-  assert.match(f.panel.querySelector('#attempt').textContent, /Your attempt100%/);
+  assert.match(f.panel.querySelector('#attempt').textContent, /Your attemptCorrect/);
   assert.ok(f.button('Hear yours'));
   assert.equal(f.button('Hear hola').disabled, false);
   f.exports.resetPractice();
+});
+
+test('a missed word reads Incorrect, and a partly right line keeps its percentage', async () => {
+  for (const [score, label] of [[0, /Your attemptIncorrect/], [0.5, /Your attempt50%/]]) {
+    const f = await fixture(async path => path === '/explain' ? { gloss: 'Hello' } : { transcript: '', score, words: [{ word: 'hola', status: 'missed' }], event_saved: true },
+      async () => ({ getTracks: () => [{ stop() {} }] }));
+    f.mic().click(); await tick();
+    f.mic().click(); await tick(); await tick();
+    assert.match(f.panel.querySelector('#attempt').textContent, label);
+    f.exports.resetPractice();
+  }
 });
 
 test('closing during microphone permission releases the eventual stream without recording', async () => {

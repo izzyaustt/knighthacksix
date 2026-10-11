@@ -250,7 +250,11 @@ function stopRecording() {
 function showAttempt(result: Attempt, epoch: number) {
   if (!ui) return;
   const head = el('div', 'attempt-head'), chips = el('div', 'word-chips'), buttons = el('div', 'pair-btns');
-  head.append(el('span', '', 'Your attempt'), el('span', 'score', `${Math.round(result.score * 100)}%`));
+  // A single word can only score 0 or 1, so say so in words; lines and phrases keep their percentage.
+  const pct = Math.round(result.score * 100);
+  const score = el('span', 'score', pct === 100 ? 'Correct' : pct === 0 ? 'Incorrect' : `${pct}%`);
+  if (pct === 0) score.dataset.result = 'incorrect';
+  head.append(el('span', '', 'Your attempt'), score);
   for (const w of result.words) {
     const chip = el('span', '', w.status === 'correct' ? `${w.word} ✓` : `${w.word} · ${w.heard ? `heard “${w.heard}”` : 'missed'}`);
     chip.dataset.status = w.status;

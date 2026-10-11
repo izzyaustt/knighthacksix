@@ -128,6 +128,7 @@ a { color: var(--ink); } a:hover { color: var(--olive); }
 .attempt { background: var(--sand); border-radius: 16px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
 .attempt-head { display: flex; align-items: baseline; justify-content: space-between; font-size: 15px; font-weight: 600; }
 .attempt-head .score { font-size: 28px; font-weight: 800; color: var(--olive); }
+.attempt-head .score[data-result="incorrect"] { color: var(--wine); }
 .word-chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .word-chips span { flex: 1 1 auto; text-align: center; padding: 8px 10px; border-radius: 10px; font-weight: 700; font-size: 16px; background: var(--pink); color: var(--ink); }
 .word-chips span[data-status="correct"] { background: var(--olive); color: #fff; }
