@@ -25,7 +25,7 @@ async function panelFixture(initialRead = Promise.resolve({ user: { id: 'test-us
     storage: { local: { get: () => initialRead, set: async () => {}, remove: async keys => { removed.push([...keys]); } }, onChanged: { addListener: fn => { changed = fn; } } },
     runtime: { sendMessage: async msg => { if (msg.type === 'whoami') return initialRead; messages.push(msg.type); return { ok: true }; } },
   };
-  const exports = await load('panel', { chrome, console, LANGUAGES, isLanguage, getSettings: async () => ({ langTgt: 'es' }), LOGO_FULL: '', LOGO_MARK: '', PANEL_CSS: '', emptyDay: () => ({}), isStatsKey: () => false,
+  const exports = await load('panel', { chrome, console, LANGUAGES, isLanguage, getSettings: async () => ({ langTgt: 'es' }), LOGO_FULL: '', LOGO_MARK: '', MASCOT: '', PANEL_CSS: '', emptyDay: () => ({}), isStatsKey: () => false,
     document: { createElement: () => host, getElementById: () => ({}), addEventListener() {} } });
   exports.createPanel({ onLookupBack: () => { resets++; } });
   return { node, signOuts, removed, messages, changed: (...args) => changed(...args), resets: () => resets };

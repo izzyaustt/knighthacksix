@@ -166,7 +166,9 @@ export function createDataRouter(pool, requireUser, { explain } = {}) {
     const [user, lang] = identity(req, body);
     const word = text(body.word, 'word', undefined, 2000);
     if (!STATUSES.includes(body.status)) throw bad(`status must be one of ${STATUSES.join(', ')}`);
-    const updated = await pool.query('UPDATE vocab SET status=$4 WHERE user_id=$1 AND lang=$2 AND word=$3', [user, lang, word, body.status]);
+    // Setting a word back to learning is the flashcard "missed it": stamp it so it leads Words To Revisit.
+    const updated = await pool.query(`UPDATE vocab SET status=$4,revisit_at=CASE WHEN $4='learning' THEN now() END
+      WHERE user_id=$1 AND lang=$2 AND word=$3`, [user, lang, word, body.status]);
     if (!updated.rowCount) throw bad('Word is not saved', 404);
     res.json({ ok: true, status: body.status });
   });
@@ -178,7 +180,7 @@ export function createDataRouter(pool, requireUser, { explain } = {}) {
       (SELECT count(*) FROM shadow_attempts a WHERE a.user_id=v.user_id AND a.lang=v.lang AND a.status='completed'
         AND lower(trim(a.target_text))=lower(trim(v.word)) AND a.score<$4) AS misses
       FROM vocab v WHERE v.user_id=$1 AND v.lang=$2 AND v.status<>'known'
-      ORDER BY misses DESC,v.saved_at,v.word LIMIT $3`, [user, lang, limit, MASTERY_SCORE]);
+      ORDER BY v.revisit_at DESC NULLS LAST,misses DESC,v.saved_at,v.word LIMIT $3`, [user, lang, limit, MASTERY_SCORE]);
     for (const row of rows) if (row.note === null) backfillNote(user, lang, row);
     res.json({ words: numericRows(rows, ['misses']) });
   });

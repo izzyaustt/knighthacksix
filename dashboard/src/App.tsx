@@ -14,12 +14,20 @@ const STATS_INTERVAL = 5_000;
 const VIDEOS_INTERVAL = 30_000;
 const Tutor = lazy(() => import('./components/Tutor.tsx').then(module => ({ default: module.Tutor })));
 type Page = 'dashboard' | 'study' | 'tutor';
-const currentPage = (): Page => window.location.hash === '#study/tutor' ? 'tutor' : window.location.hash === '#study' ? 'study' : 'dashboard';
+const parseHash = () => {
+  const [path, query = ''] = window.location.hash.split('?');
+  return { path, word: new URLSearchParams(query).get('word') };
+};
+const currentPage = (): Page => {
+  const { path } = parseHash();
+  return path === '#study/tutor' ? 'tutor' : path === '#study' ? 'study' : 'dashboard';
+};
 
 export function App({ user, language, onLanguageChange }: { user: Session['user']; language: Language; onLanguageChange: (language: Language) => void }) {
   const [page, setPage] = useState<Page>(currentPage);
+  const [focusWord, setFocusWord] = useState<string | null>(() => parseHash().word);
   useEffect(() => {
-    const onNavigation = () => setPage(currentPage());
+    const onNavigation = () => { setPage(currentPage()); setFocusWord(parseHash().word); };
     window.addEventListener('hashchange', onNavigation);
     return () => window.removeEventListener('hashchange', onNavigation);
   }, []);
@@ -60,7 +68,7 @@ export function App({ user, language, onLanguageChange }: { user: Session['user'
       </nav>
 
       <main className="main">
-        {page === 'tutor' ? <Suspense fallback={<p role="status">Loading your tutor…</p>}><Tutor language={language} /></Suspense> : page === 'study' ? <Study vocab={vocab} language={language} onOpenTutor={() => { window.location.hash = 'study/tutor'; }} /> : <>
+        {page === 'tutor' ? <Suspense fallback={<p role="status">Loading your tutor…</p>}><Tutor language={language} /></Suspense> : page === 'study' ? <Study vocab={vocab} language={language} focusWord={focusWord} onChange={onVocabChange} /> : <>
         {offline && (
           <p className="banner" role="status">
             Can't reach the backend, so some numbers may be out of date. Start it from <code>backend/</code> with{' '}

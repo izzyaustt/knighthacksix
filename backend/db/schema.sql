@@ -35,6 +35,8 @@ CREATE TABLE IF NOT EXISTS public.vocab (
 );
 
 ALTER TABLE public.vocab ADD COLUMN IF NOT EXISTS note TEXT;
+-- When the learner last flagged the word as missed on a flashcard; newest first in Words To Revisit.
+ALTER TABLE public.vocab ADD COLUMN IF NOT EXISTS revisit_at TIMESTAMPTZ;
 
 -- Distinct normalized caption words per video, shared by all users.
 -- /align fills it as captions are translated; /stats/videos reads it for word coverage.

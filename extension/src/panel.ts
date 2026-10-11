@@ -6,8 +6,8 @@ import { LANGUAGES, isLanguage } from '../../shared/languages';
 import { getSettings } from './settings';
 import LOGO_FULL from './assets/logo-full.png?inline';
 import LOGO_MARK from './assets/logo-mark.png?inline';
+import MASCOT from './assets/mascot.svg?inline';
 import { PANEL_CSS } from './panel-css';
-import { dayKey, emptyDay, isStatsKey, readRecent, type DayStats } from './stats';
 
 export type PanelStatus =
   | { kind: 'idle' }                                   // not on a watch page
@@ -67,46 +67,21 @@ const HTML = `
  <div class="view home" id="view-home">
   <header>
     <img class="logo" src="${LOGO_MARK}" alt="" width="34" height="40">
-    <div class="titles">
-      <div class="name">langtube</div>
-      <div class="video-title" id="video-title"></div>
-    </div>
+    <div class="titles"></div>
     <button type="button" class="icon sign-out" aria-label="Sign out" title="Sign out"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 4h3a2 2 0 012 2v12a2 2 0 01-2 2h-3"></path><path d="M10 16l-4-4 4-4M6 12h10"></path></svg></button>
-    <button type="button" class="icon collapse-panel" aria-label="Collapse panel" title="Collapse"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 17l5-5-5-5M6 17l5-5-5-5"></path></svg></button><button type="button" class="icon close-panel" aria-label="Close panel"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+    <button type="button" class="icon collapse-panel" aria-label="Collapse panel" title="Collapse"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 17l5-5-5-5M6 17l5-5-5-5"></path></svg></button>
   </header>
 
-  <div class="translation-status"><span class="pill" id="pill" role="status"></span></div>
+  <div class="empty">
+    <img class="mascot" src="${MASCOT}" alt="" width="155" height="138">
+    <p class="empty-text">you currently have no word(s) selected.</p>
+    <p class="empty-text">click one to begin!</p>
+    <section id="alerts" aria-live="polite"></section>
+  </div>
 
-  <section class="card"><label class="row" for="learning-language">Learning language <select id="learning-language" aria-label="Learning language"></select></label><p id="language-note" hidden>Tagalog is in preview. Double-check caption translations and word meanings.</p></section>
-
-  <section id="alerts" aria-live="polite"></section>
-
-  <section class="stats">
-    <div class="card"><div class="label">Practice today</div><div class="value" id="minutes">0m</div></div>
-    <div class="card"><div class="label">Lookups today</div><div class="value" id="lookups">0</div></div>
-  </section>
-
-  <section class="tip" id="tip">
-    <div class="tip-icon" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11V5a2 2 0 014 0v6"></path><path d="M13 10a2 2 0 014 0v1a2 2 0 014 0v4a6 6 0 01-6 6h-2a6 6 0 01-5-2.7L5.5 15a2 2 0 013.4-2L9 13"></path></svg></div>
-    <div class="tip-body">
-      <h2>Tap any word</h2>
-      <p>Any word in the captions on the video opens its meaning, the clip it came from, and a chance to say it yourself. The video pauses while you look.</p>
-    </div>
-  </section>
-
-  <section class="card">
-    <div class="spark-head">
-      <span class="label">Watching</span>
-      <div class="seg" aria-label="Activity range">
-        <button type="button" data-range="30m" aria-pressed="true">30m</button>
-        <button type="button" data-range="24h" aria-pressed="false">24h</button>
-      </div>
-    </div>
-    <svg id="spark" role="img" aria-label=""></svg>
-    <div class="spark-axis"><span id="axis-start">30 min ago</span><span>now</span></div>
-  </section>
-
-  <section class="card">
+  <section class="mini-settings">
+    <label class="row" for="learning-language">Learning language <select id="learning-language" aria-label="Learning language"></select></label>
+    <p id="language-note" hidden>Tagalog is in preview. Double-check caption translations and word meanings.</p>
     <div class="row">
       <span id="cc-label">Bilingual captions</span>
       <button type="button" class="switch" id="cc" role="switch" aria-checked="true" aria-labelledby="cc-label"><span></span></button>
@@ -114,6 +89,27 @@ const HTML = `
   </section>
 
   <footer><button type="button" class="dash-link">Open dashboard <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 01-1 1H5a1 1 0 01-1-1V7a1 1 0 011-1h5"></path></svg></button></footer>
+ </div>
+
+ <div class="view tour" id="view-tour" hidden>
+  <header>
+    <div class="titles"><img class="tour-logo" src="${LOGO_FULL}" alt="langtube"></div>
+    <button type="button" class="icon sign-out" aria-label="Sign out" title="Sign out"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 4h3a2 2 0 012 2v12a2 2 0 01-2 2h-3"></path><path d="M10 16l-4-4 4-4M6 12h10"></path></svg></button>
+    <button type="button" class="icon collapse-panel" aria-label="Collapse panel" title="Collapse"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 17l5-5-5-5M6 17l5-5-5-5"></path></svg></button>
+  </header>
+  <h1 class="tour-title">Learn from videos you already love.</h1>
+  <p class="tour-sub">Five simple steps to turn watching into speaking.</p>
+  <div class="tour-visual" id="tour-visual"></div>
+  <div class="tour-callout" role="status">
+    <span class="tour-count" id="tour-count"></span>
+    <h2 id="tour-heading"></h2>
+    <p id="tour-text"></p>
+  </div>
+  <div class="tour-dots" id="tour-dots" aria-hidden="true"></div>
+  <div class="tour-nav">
+    <div class="tour-links"><button type="button" class="tour-back" id="tour-back">Back</button><button type="button" class="tour-skip" id="tour-skip">Skip tour</button></div>
+    <button type="button" class="tour-next" id="tour-next"></button>
+  </div>
  </div>
 
  <div class="view lookup" id="view-lookup" hidden>
@@ -128,9 +124,46 @@ const HTML = `
   <footer><button type="button" class="dash-link">Open dashboard <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 01-1 1H5a1 1 0 01-1-1V7a1 1 0 011-1h5"></path></svg></button></footer>
  </div>
 </aside>
-<button type="button" class="bubble" id="bubble" aria-label="Expand langtube panel" title="langtube" hidden><img src="${LOGO_MARK}" alt="" width="26" height="30"></button>`;
+<button type="button" class="bubble" id="bubble" aria-label="Expand langtube panel" title="langtube" hidden><img src="${MASCOT}" alt="" width="52" height="53"></button>`;
+
+// First-run tutorial. Static markup only: nothing here comes from the page or the network.
+const heat = Array.from({ length: 48 }, (_, i) => `<s class="h${(i * 7 + (i % 5)) % 4}"></s>`).join('');
+const TOUR_STEPS: { title: string; text: string; visual: string }[] = [
+  {
+    title: 'Go to any YouTube video',
+    text: 'Open a video you want to understand. Langtube will add interactive captions as it plays.',
+    visual: `<div class="t-video"><div class="t-video-title">How to cook a quick Spanish dinner</div><div class="t-video-bar"><span class="t-play"></span><span class="t-track"><i></i></span><span class="t-time">0:18 / 8:42</span></div></div>
+      <div class="t-meta"><strong>Learn Spanish while you cook</strong><span>Cocina Fácil · 248K views</span></div>`,
+  },
+  {
+    title: 'Click a colored word',
+    text: 'Choose any highlighted word in the pop-up caption to pause the video and take a closer look.',
+    visual: `<div class="t-stage"><div class="t-caption">Hoy vamos a <mark class="c1">cocinar</mark> algo <mark class="c2">delicioso</mark></div></div>
+      <div class="t-hint">↑ Tap a colored word</div>`,
+  },
+  {
+    title: 'See it, hear it, say it',
+    text: 'View the translation and pronunciation, then practice pronouncing the word out loud.',
+    visual: `<div class="t-word"><span class="t-eyebrow">SPANISH</span><span class="t-big">cocinar</span><span class="t-pron">koh-see-NAR</span><div class="t-rule"></div><div class="t-row"><strong>to cook</strong><span>verb</span></div>
+      <span class="t-speaker"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5L6 9H3v6h3l5 4z"></path><path d="M15.5 8.5a5 5 0 010 7M18.5 5.5a9 9 0 010 13"></path></svg></span></div><div class="t-bar"></div>`,
+  },
+  {
+    title: 'Save words for later',
+    text: 'Save useful words with one click so you can come back and practice them anytime.',
+    visual: `<div class="t-save"><div class="t-save-card"><div><strong class="t-big sm">cocinar</strong><span>to cook</span></div>
+      <span class="t-bookmark"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6 3h12v18l-6-4-6 4z"></path></svg></span></div>
+      <div class="t-saved"><span class="t-check">✓</span> Saved to your word list</div></div>`,
+  },
+  {
+    title: 'Visit your dashboard',
+    text: 'See your language stats, review saved words, and open all of your study tools in one place.',
+    visual: `<div class="t-dash"><div class="t-dash-side"><i class="on">Dashboard</i><i>Study</i></div>
+      <div class="t-dash-main"><div class="t-dash-head">Overview</div><div class="t-dash-grid">${heat}</div><div class="t-dash-olive">Mastery Levels</div></div></div>`,
+  },
+];
 
 const SESSION_KEY = 'session'; // written by auth.ts in the service worker
+const TOUR_KEY = 'll:tourDone';
 const FONTS_ID = 'll-fonts';
 const FONTS_URL = 'https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&family=Caveat:wght@600&display=swap';
 
@@ -146,7 +179,8 @@ export function createPanel(deps: PanelDeps): PanelController {
   for (const [code, language] of Object.entries(LANGUAGES)) {
     const option = document.createElement('option'); option.value = code; option.textContent = language.name; languageSelect.append(option);
   }
-  const showLanguageNote = () => { $('language-note').hidden = languageSelect.value !== 'fil'; };
+  const TAGALOG_NOTE = 'Tagalog is in preview. Double-check caption translations and word meanings.';
+  const showLanguageNote = () => { $('language-note').textContent = TAGALOG_NOTE; $('language-note').hidden = languageSelect.value !== 'fil'; };
   void getSettings().then(settings => { languageSelect.value = settings.langTgt; showLanguageNote(); });
   languageSelect.addEventListener('change', async () => {
     languageSelect.disabled = true;
@@ -154,7 +188,7 @@ export function createPanel(deps: PanelDeps): PanelController {
       const settings = await getSettings();
       await chrome.storage.local.set({ settings: { ...settings, langTgt: languageSelect.value } });
       showLanguageNote();
-    } catch { $('pill').textContent = 'Could not change language. Try again.'; }
+    } catch { $('language-note').textContent = 'Could not change language. Try again.'; $('language-note').hidden = false; }
     finally { languageSelect.disabled = false; }
   });
 
@@ -183,14 +217,13 @@ export function createPanel(deps: PanelDeps): PanelController {
   document.defaultView?.addEventListener('resize', fitToRecommendations);
   document.addEventListener('yt-navigate-finish', () => { if (open) { observeLayout(); fitToRecommendations(); } });
   let status: PanelStatus = { kind: 'idle' };
-  let range: '30m' | '24h' = '30m';
-  let stats: { today: DayStats; yesterday: DayStats } = { today: emptyDay(), yesterday: emptyDay() };
-  let timer = 0;
   let alertKey: string | null = null;
 
   // The service worker owns the Google session (auth.ts); the panel only asks and listens for changes.
   let signedIn = false;
   let lookupOpen = false;
+  let tourDone = true; // flipped to false below if this is a first run
+  let tourStep = 0;
   let authRevision = 0;
   try {
     const revision = authRevision;
@@ -206,120 +239,71 @@ export function createPanel(deps: PanelDeps): PanelController {
     document.head.append(link);
   }
 
+  try {
+    void chrome.storage.local.get(TOUR_KEY).then((got) => { tourDone = !!got[TOUR_KEY]; renderView(); }).catch(() => {});
+  } catch { /* orphaned after extension reload */ }
+
   wire();
   renderView();
 
   function renderView() {
-    const view = !signedIn ? 'signin' : lookupOpen ? 'lookup' : 'home';
-    for (const name of ['signin', 'home', 'lookup']) $(`view-${name}`).hidden = name !== view;
+    const view = !signedIn ? 'signin' : lookupOpen ? 'lookup' : !tourDone ? 'tour' : 'home';
+    for (const name of ['signin', 'home', 'tour', 'lookup']) $(`view-${name}`).hidden = name !== view;
+    if (view === 'tour') renderTour();
+  }
+
+  /* ---------- first-run tour ---------- */
+
+  function renderTour() {
+    const step = TOUR_STEPS[tourStep];
+    const last = tourStep === TOUR_STEPS.length - 1;
+    $('tour-visual').innerHTML = step.visual;
+    $('tour-count').textContent = `${tourStep + 1} OF ${TOUR_STEPS.length}`;
+    $('tour-heading').textContent = step.title;
+    $('tour-text').textContent = step.text;
+    $('tour-dots').replaceChildren(...TOUR_STEPS.map((_, i) => {
+      const dot = document.createElement('span');
+      if (i === tourStep) dot.className = 'on';
+      return dot;
+    }));
+    $('tour-back').hidden = tourStep === 0;
+    $('tour-skip').hidden = last;
+    const next = $('tour-next');
+    next.textContent = last ? 'Get started ' : 'Next ';
+    next.insertAdjacentHTML('beforeend', '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"></path></svg>');
+  }
+
+  function finishTour() {
+    tourDone = true;
+    tourStep = 0;
+    renderView();
+    try { void chrome.storage.local.set({ [TOUR_KEY]: true }); } catch { /* orphaned */ }
   }
 
   /* ---------- data ---------- */
-
-  async function loadStats() {
-    try { stats = await readRecent(); } catch { /* orphaned after extension reload */ }
-  }
 
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== 'local') return;
     const nextLanguage = (changes.settings?.newValue as { langTgt?: unknown } | undefined)?.langTgt;
     if (isLanguage(nextLanguage)) { languageSelect.value = nextLanguage; showLanguageNote(); }
+    if (TOUR_KEY in changes) { tourDone = !!changes[TOUR_KEY].newValue; renderView(); }
     // Signed in from another tab, signed out, or the backend rejected an expired session.
     if (SESSION_KEY in changes) {
       authRevision++;
       if (!changes[SESSION_KEY].newValue) showSignIn();
       else { signedIn = true; renderView(); }
     }
-    if (!open) return;
-    const keys = Object.keys(changes);
-    if (keys.some(isStatsKey)) void loadStats().then(renderLive);
   });
-
-  function todayWatchSeconds() {
-    const today = dayKey();
-    let secs = Object.values(stats.today.watch).reduce((a, b) => a + b, 0);
-    for (const [minute, s] of deps.pendingWatch()) if (dayKey(new Date(minute * 60_000)) === today) secs += s;
-    return secs;
-  }
-
-  function watchedIn(minute: number) {
-    const d = new Date(minute * 60_000);
-    const day = dayKey(d) === dayKey() ? stats.today : stats.yesterday;
-    return (day.watch[d.getHours() * 60 + d.getMinutes()] ?? 0) + (deps.pendingWatch().get(minute) ?? 0);
-  }
-
-  /** 30m: share of each minute spent watching (0–1). 24h: minutes watched per hour. Oldest first. */
-  function series(): number[] {
-    const nowMin = Math.floor(Date.now() / 60_000);
-    if (range === '30m') {
-      return Array.from({ length: 30 }, (_, i) => Math.min(1, watchedIn(nowMin - 29 + i) / 60));
-    }
-    const out: number[] = [];
-    for (let h = 23; h >= 0; h--) {
-      const hourEnd = nowMin - h * 60;
-      let secs = 0;
-      for (let m = hourEnd - 59; m <= hourEnd; m++) secs += watchedIn(m);
-      out.push(secs / 60);
-    }
-    return out;
-  }
 
   /* ---------- rendering ---------- */
 
   function renderAll() {
-    renderStatus();
     renderToggles();
-    for (const b of shadow.querySelectorAll<HTMLButtonElement>('.seg button')) {
-      b.setAttribute('aria-pressed', String(b.dataset.range === range));
-    }
-    $('axis-start').textContent = range === '30m' ? '30 min ago' : '24 h ago';
-    renderLive();
-  }
-
-  /** Every second while open. */
-  function renderLive() {
-    if (!open) return;
-    $('video-title').textContent = deps.getVideoId()
-      ? document.title.replace(/^\(\d+\)\s*/, '').replace(/\s*-\s*YouTube$/, '')
-      : 'No video open';
-    $('minutes').textContent = fmtDuration(todayWatchSeconds());
-    $('lookups').textContent = String(stats.today.lookups);
-    drawSpark(series());
     renderAlerts();
-  }
-
-  function renderStatus() {
-    const pill = $('pill');
-    const [state, text] =
-      status.kind === 'idle' ? ['idle', 'No video'] :
-      status.kind === 'waiting' ? ['working', 'Loading captions'] :
-      status.kind === 'aligning' ? ['working', `Translating ${Math.round((status.done / Math.max(1, status.total)) * 100)}%`] :
-      status.failed ? ['warn', 'Partly translated'] : ['ready', 'Ready'];
-    pill.dataset.state = state;
-    pill.textContent = text;
   }
 
   function renderToggles() {
     $('cc').setAttribute('aria-checked', String(deps.captionsOn()));
-  }
-
-  function drawSpark(vals: number[]) {
-    const svg = $('spark') as unknown as SVGSVGElement;
-    const w = svg.clientWidth || 300;
-    const h = 48;
-    const pad = 4;
-    const max = Math.max(range === '30m' ? 1 : 15, ...vals);
-    const step = w / (vals.length - 1);
-    const pts = vals.map((v, i) => [i * step, h - pad - (v / max) * (h - pad * 2)] as const);
-    const d = pts.map(([x, y], i) => `${i ? 'L' : 'M'}${x.toFixed(1)},${y.toFixed(1)}`).join('');
-    const [lx, ly] = pts[pts.length - 1];
-    svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
-    svg.innerHTML =
-      `<path class="spark-area" d="${d}L${w},${h}L0,${h}Z"/>` +
-      `<path class="spark-line" d="${d}"/>` +
-      `<circle class="spark-dot" cx="${lx.toFixed(1)}" cy="${ly.toFixed(1)}" r="3"/>`;
-    const minutes = range === '30m' ? vals.reduce((a, b) => a + b, 0) : vals.reduce((a, b) => a + b, 0);
-    svg.setAttribute('aria-label', `${fmtDuration(minutes * 60)} watched in the last ${range === '30m' ? '30 minutes' : '24 hours'}`);
   }
 
   function computeAlert(): Alert | null {
@@ -382,7 +366,7 @@ export function createPanel(deps: PanelDeps): PanelController {
   }
 
   function openDashboard() {
-    const ctx = { videoId: deps.getVideoId(), t: deps.getVideo()?.currentTime, range: range === '30m' ? '1h' : '24h' };
+    const ctx = { videoId: deps.getVideoId(), t: deps.getVideo()?.currentTime, range: '1h' as const };
     try {
       chrome.runtime.sendMessage({ type: 'll:open-dashboard', ctx }).catch(() => {});
     } catch { /* orphaned */ }
@@ -396,6 +380,11 @@ export function createPanel(deps: PanelDeps): PanelController {
     $('brand-link').addEventListener('click', openDashboard);
     for (const a of shadow.querySelectorAll('[data-todo]')) a.addEventListener('click', (e) => e.preventDefault());
     $('signin').addEventListener('click', signIn);
+    $('tour-back').addEventListener('click', () => { tourStep = Math.max(0, tourStep - 1); renderTour(); });
+    $('tour-skip').addEventListener('click', () => finishTour());
+    $('tour-next').addEventListener('click', () => {
+      if (tourStep < TOUR_STEPS.length - 1) { tourStep++; renderTour(); } else finishTour();
+    });
     for (const b of shadow.querySelectorAll('.sign-out')) b.addEventListener('click', signOut);
     $('lookup-back').addEventListener('click', () => {
       lookupOpen = false;
@@ -404,9 +393,6 @@ export function createPanel(deps: PanelDeps): PanelController {
     });
     $('panel').addEventListener('keydown', (e) => { if (e.key === 'Escape') toggle(false); });
     $('cc').addEventListener('click', () => setCaptions(!deps.captionsOn()));
-    for (const b of shadow.querySelectorAll<HTMLButtonElement>('.seg button')) {
-      b.addEventListener('click', () => { range = b.dataset.range as '30m' | '24h'; renderAll(); });
-    }
     // Keep the panel visible in fullscreen by moving it into the fullscreen element.
     document.addEventListener('fullscreenchange', () => {
       if (host.isConnected) (document.fullscreenElement ?? document.body).append(host);
@@ -422,7 +408,7 @@ export function createPanel(deps: PanelDeps): PanelController {
     try {
       const r = await chrome.runtime.sendMessage({ type: 'signin' });
       if (!r?.ok) throw new Error(r?.error ?? 'Sign-in failed.');
-      if (revision === authRevision) { signedIn = true; renderView(); }
+      if (revision === authRevision) { signedIn = true; tourDone = false; tourStep = 0; renderView(); }
     } catch (e) {
       error.textContent = e instanceof Error ? e.message : String(e);
       error.hidden = false;
@@ -448,6 +434,10 @@ export function createPanel(deps: PanelDeps): PanelController {
 
   function showSignIn() {
     signedIn = false;
+    // Demo behavior: the tutorial plays again after every sign-in.
+    tourDone = false;
+    tourStep = 0;
+    try { void chrome.storage.local.remove(TOUR_KEY); } catch { /* orphaned */ }
     lookupOpen = false;
     deps.onLookupBack?.();
     renderView();
@@ -471,16 +461,12 @@ export function createPanel(deps: PanelDeps): PanelController {
       host.style.display = '';
       fitToRecommendations();
       observeLayout();
-      void loadStats().then(renderAll);
       renderAll();
-      clearInterval(timer);
-      timer = window.setInterval(renderLive, 1000);
       $('panel').focus({ preventScroll: true });
     } else {
       host.style.display = 'none';
       layoutObserver?.disconnect();
       setCollapsed(false);
-      clearInterval(timer);
       deps.onClose?.();
     }
   }
@@ -500,19 +486,10 @@ export function createPanel(deps: PanelDeps): PanelController {
     },
     setStatus(next) {
       status = next;
-      if (open) { renderStatus(); renderAlerts(); }
+      if (open) renderAlerts();
     },
     reset() {
       if (open) renderAll();
     },
   };
-}
-
-function fmtDuration(sec: number) {
-  sec = Math.max(0, Math.floor(sec));
-  const h = Math.floor(sec / 3600);
-  const m = Math.floor((sec % 3600) / 60);
-  if (h) return `${h}h ${m}m`;
-  if (m) return `${m}m`;
-  return `${sec}s`;
 }
