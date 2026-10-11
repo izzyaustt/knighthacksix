@@ -75,6 +75,12 @@ chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
     case 'll:vocab':
       post('/vocab', msg.item).then(reply);
       return true;
+    case 'll:vocab-delete':
+      request('DELETE', `/vocab?lang=es&word=${encodeURIComponent(msg.word)}`).then(reply);
+      return true;
+    case 'll:vocab-list':
+      request('GET', '/vocab?lang=es&limit=1000').then(reply);
+      return true;
     case 'll:open-dashboard':
       openDashboard(msg.ctx ?? {}).then(() => reply({ ok: true }));
       return true;
@@ -95,6 +101,20 @@ async function post(path: string, body: Record<string, unknown>) {
     return { ok: res.ok, status: res.status };
   } catch (err) {
     console.warn('[LL worker] POST', path, 'failed', err);
+    return { ok: false, error: String(err) };
+  }
+}
+
+async function request(method: 'GET' | 'DELETE', path: string) {
+  const s = await getSettings();
+  if (!s.backendUrl) return { ok: false, skipped: 'no backendUrl' };
+  try {
+    const res = await fetch(new URL(path, s.backendUrl), { method, headers: await authHeaders() });
+    if (res.status === 401) await clearSession();
+    const data = (res.headers.get('content-type') ?? '').includes('json') ? await res.json().catch(() => ({})) : {};
+    return { ...data, ok: res.ok, status: res.status };
+  } catch (err) {
+    console.warn('[LL worker]', method, path, 'failed', err);
     return { ok: false, error: String(err) };
   }
 }

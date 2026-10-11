@@ -49,12 +49,16 @@ export async function getVocab(): Promise<VocabItem[]> {
 export const sameVocab = (a: Pick<VocabItem, 'word' | 'video_id'>, b: Pick<VocabItem, 'word' | 'video_id'>) =>
   a.word.toLowerCase() === b.word.toLowerCase() && a.video_id === b.video_id;
 
+// The database keys saved words by (user, lang, word), so a word is saved once regardless of video.
+const sameWord = (a: Pick<VocabItem, 'word'>, b: Pick<VocabItem, 'word'>) => a.word.toLowerCase() === b.word.toLowerCase();
+
 /** Saves the item, or removes it if already saved. Returns whether it is saved afterwards. */
 export async function toggleVocab(item: Omit<VocabItem, 'saved_at'>): Promise<boolean> {
   const list = await getVocab();
-  if (list.some((v) => sameVocab(v, item))) {
-    // The API has no DELETE /vocab yet, so un-saving is local only.
-    await chrome.storage.local.set({ [VOCAB_KEY]: list.filter((v) => !sameVocab(v, item)) });
+  if (list.some((v) => sameWord(v, item))) {
+    const result = await chrome.runtime.sendMessage({ type: 'll:vocab-delete', word: item.word });
+    if (!result?.ok) throw new Error('Could not remove from the database. Check the backend connection and try again.');
+    await chrome.storage.local.set({ [VOCAB_KEY]: list.filter((v) => !sameWord(v, item)) });
     return false;
   }
   const result = await chrome.runtime.sendMessage({ type: 'll:vocab', item });
@@ -62,4 +66,22 @@ export async function toggleVocab(item: Omit<VocabItem, 'saved_at'>): Promise<bo
   await chrome.storage.local.set({ [VOCAB_KEY]: [{ ...item, saved_at: Date.now() }, ...list].slice(0, 1000) });
   logEvent({ event_type: 'save', video_id: item.video_id, word: item.word, lang: 'es', meta: { translation: item.translation, video_ts: item.video_ts } });
   return true;
+}
+
+/** Replaces the local saved-word list with the database copy. Call on panel open and after sign-in. */
+export async function syncVocab(): Promise<void> {
+  try {
+    const result = await chrome.runtime.sendMessage({ type: 'll:vocab-list' });
+    if (!result?.ok || !Array.isArray(result.words)) return; // offline or signed out: keep the local copy
+    const items: VocabItem[] = result.words.map((r: any) => ({
+      word: String(r.word),
+      translation: String(r.translation ?? ''),
+      video_id: r.video_id ?? null,
+      video_ts: Number(r.video_ts) || 0,
+      saved_at: Date.parse(r.saved_at) || Date.now(),
+    }));
+    await chrome.storage.local.set({ [VOCAB_KEY]: items });
+  } catch {
+    // Extension reloaded or worker asleep; the next sync will catch up.
+  }
 }
