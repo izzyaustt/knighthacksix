@@ -301,6 +301,16 @@ button { font: inherit; }
 .deck-arrow { width: 44px; height: 64px; padding: 0; display: grid; place-items: center; border: 0; background: none; color: var(--pink); cursor: pointer; border-radius: 10px; }
 .deck-arrow:hover:not(:disabled) { background: #fdecee; }
 .deck-arrow:disabled { opacity: .3; cursor: default; }
+.deck-grade { display: flex; justify-content: center; gap: 16px; margin-top: 16px; }
+.deck-grade-button { width: 52px; height: 52px; padding: 0; display: grid; place-items: center; border: 0; border-radius: 50%; color: #fff; cursor: pointer; }
+.deck-grade-button.wrong { background: var(--pink); }
+.deck-grade-button.right { background: var(--olive-ink); }
+.deck-grade-button:hover { filter: brightness(.94); }
+.toast-region { position: fixed; left: 0; right: 0; bottom: 28px; display: flex; justify-content: center; pointer-events: none; z-index: 20; }
+.toast { padding: 12px 20px; border-radius: 999px; background: var(--ink); color: #fff; font-size: 14px; font-weight: 600; box-shadow: 0 6px 20px rgba(0, 0, 0, .22); animation: toast-in .2s ease-out; }
+@keyframes toast-in { from { opacity: 0; transform: translateY(8px); } }
+@media (prefers-reduced-motion: reduce) { .toast { animation: none; } }
+.deck-error { text-align: center; margin: -8px 0 20px; font-size: 13px; color: #8a2f3b; }
 .deck-hint { text-align: center; font-size: 12px; font-style: italic; color: var(--olive-ink); margin: 12px 0 20px; }
 
 /* A fixed height keeps the card steady across flips and words; a long back scrolls inside. */

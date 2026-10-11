@@ -30,14 +30,14 @@ a { color: var(--ink); } a:hover { color: var(--olive); }
 /* Narrow windows: the panel becomes the whole width; short ones: tighter padding. */
 @media (max-width: 520px) { :host { width: 100vw; } .panel { border-left: 0; } }
 /* Collapsed: the host shrinks to a logo bubble so the rest of the page stays clickable. */
-:host(.collapsed) { top: auto; bottom: 24px; right: 24px; width: 56px; height: 56px; }
+:host(.collapsed) { top: auto; bottom: 24px; right: 24px; width: 68px; height: 68px; }
 .bubble {
-  width: 56px; height: 56px; padding: 0; border-radius: 50%; display: grid; place-items: center; cursor: pointer;
+  width: 68px; height: 68px; padding: 0; border-radius: 50%; display: grid; place-items: center; cursor: pointer;
   background: var(--sand); border: 1px solid var(--border); box-shadow: 0 6px 20px rgba(0, 0, 0, .28);
   transition: transform .15s;
 }
 .bubble:hover { transform: scale(1.06); }
-.bubble img { display: block; width: 26px; height: 30px; }
+.bubble img { display: block; width: 52px; height: 53px; }
 @media (max-height: 640px) {
   .view.lookup { gap: 14px; padding-top: 10px; }
   .view.signin { gap: 24px; padding: 24px; }

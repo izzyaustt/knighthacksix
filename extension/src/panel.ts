@@ -124,7 +124,7 @@ const HTML = `
   <footer><button type="button" class="dash-link">Open dashboard <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 01-1 1H5a1 1 0 01-1-1V7a1 1 0 011-1h5"></path></svg></button></footer>
  </div>
 </aside>
-<button type="button" class="bubble" id="bubble" aria-label="Expand langtube panel" title="langtube" hidden><img src="${LOGO_MARK}" alt="" width="26" height="30"></button>`;
+<button type="button" class="bubble" id="bubble" aria-label="Expand langtube panel" title="langtube" hidden><img src="${MASCOT}" alt="" width="52" height="53"></button>`;
 
 // First-run tutorial. Static markup only: nothing here comes from the page or the network.
 const heat = Array.from({ length: 48 }, (_, i) => `<s class="h${(i * 7 + (i % 5)) % 4}"></s>`).join('');

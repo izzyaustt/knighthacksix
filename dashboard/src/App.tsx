@@ -68,7 +68,7 @@ export function App({ user, language, onLanguageChange }: { user: Session['user'
       </nav>
 
       <main className="main">
-        {page === 'tutor' ? <Suspense fallback={<p role="status">Loading your tutor…</p>}><Tutor language={language} /></Suspense> : page === 'study' ? <Study vocab={vocab} language={language} focusWord={focusWord} onOpenTutor={() => { window.location.hash = 'study/tutor'; }} /> : <>
+        {page === 'tutor' ? <Suspense fallback={<p role="status">Loading your tutor…</p>}><Tutor language={language} /></Suspense> : page === 'study' ? <Study vocab={vocab} language={language} focusWord={focusWord} onChange={onVocabChange} /> : <>
         {offline && (
           <p className="banner" role="status">
             Can't reach the backend, so some numbers may be out of date. Start it from <code>backend/</code> with{' '}
