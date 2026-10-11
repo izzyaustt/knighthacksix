@@ -11,8 +11,6 @@ dist
 **/*.pem
 **/*.key
 **/.cache
-backend/**
-!backend/src/
-!backend/src/spanish-pronunciation.ts
+backend
 extension
 docs

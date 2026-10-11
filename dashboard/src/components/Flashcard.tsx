@@ -2,7 +2,7 @@ import { useEffect, useState, type MouseEvent } from 'react';
 import type { VocabWord } from '../api.ts';
 import { explain, type Explanation } from '../practice-api.ts';
 import type { Language } from '../../../shared/languages.ts';
-import { spanishPronunciation } from '../../../backend/src/spanish-pronunciation.ts';
+import { spanishPronunciation } from '../../../shared/spanish-pronunciation.ts';
 
 type Loaded = { word: string; data?: Explanation; error?: string };
 

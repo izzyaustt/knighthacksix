@@ -22,7 +22,7 @@ Before deploying, add these environment variables to Production (and Preview if 
 - `VITE_BACKEND_URL`: the actual HTTPS Render backend origin, with no path.
 - `VITE_GOOGLE_CLIENT_ID`: the existing Google Web application client ID, matching the backend's `GOOGLE_WEB_CLIENT_ID`.
 
-Both values are public browser configuration. Keep database, Gemini, ElevenLabs, and session credentials only on Render. `.vercelignore` excludes backend files except the public pronunciation helper used by dashboard flashcards, plus local environments, certificates, and caches from CLI uploads. Git deployments still rely on keeping secrets out of Git.
+Both values are public browser configuration. Keep database, Gemini, ElevenLabs, and session credentials only on Render. `.vercelignore` excludes backend files, local environments, certificates, and caches from CLI uploads. Git deployments still rely on keeping secrets out of Git.
 
 Vite embeds these settings when building; redeploy after changing them. Deployment intentionally fails if the backend URL is missing or points to localhost.
 
