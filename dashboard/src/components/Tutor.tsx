@@ -1,12 +1,14 @@
+import { LANGUAGES, type Language } from '../../../shared/languages.ts';
 import { useEffect, useRef, useState } from 'react';
 import { ConversationProvider, useConversation } from '@elevenlabs/react';
 import { studyConfig, studySession, type StudyConfig } from '../study-api.ts';
 import { prepareStudyConnection } from '../study-connection.ts';
 
-export function Tutor() {
-  return <ConversationProvider><ConversationPractice /></ConversationProvider>;
+export function Tutor({ language }: { language: Language }) {
+  return <ConversationProvider><ConversationPractice language={language} /></ConversationProvider>;
 }
-function ConversationPractice() {
+function ConversationPractice({ language }: { language: Language }) {
+  const info = LANGUAGES[language];
   const [config, setConfig] = useState<StudyConfig>();
   const [scenario, setScenario] = useState('cafe');
   const [level, setLevel] = useState('A2');
@@ -32,9 +34,9 @@ function ConversationPractice() {
   const busy = starting || conversation.status === 'connecting' || connected;
   useEffect(() => {
     const controller = new AbortController();
-    studyConfig(controller.signal).then(setConfig).catch(e => { if (!controller.signal.aborted) setError(e.message); });
+    studyConfig(controller.signal, language).then(setConfig).catch(e => { if (!controller.signal.aborted) setError(e.message); });
     return () => controller.abort();
-  }, []);
+  }, [language]);
   useEffect(() => () => { request.current?.abort(); conversation.endSession(); }, [conversation.endSession]);
   useEffect(() => { transcript.current?.scrollTo({ top: transcript.current.scrollHeight, behavior: 'smooth' }); }, [messages]);
   useEffect(() => {
@@ -55,7 +57,7 @@ function ConversationPractice() {
     try {
       if (!navigator.mediaDevices?.getUserMedia) throw Error('Voice practice needs a secure browser connection and microphone access.');
       const session = await prepareStudyConnection(controller.signal,
-        () => studySession(scenario, level, controller.signal),
+        () => studySession(scenario, level, controller.signal, language),
         () => navigator.mediaDevices.getUserMedia({ audio: true }));
       if (!session) return;
       conversation.startSession({ signedUrl: session.signed_url, connectionType: 'websocket', dynamicVariables: session.dynamic_variables });
@@ -71,10 +73,10 @@ function ConversationPractice() {
     request.current?.abort(); conversation.endSession(); setStarting(false); setEnded(true); deadline.current = 0;
   }
   const selected = config?.scenarios.find(item => item.id === scenario);
-  return <section className="study-page" aria-label="Spanish conversation practice">
+  return <section className="study-page" aria-label={`${info.name} conversation practice`}>
     <div className="study-intro"><span className="study-eyebrow">LET’S TALK</span>
-      <h2>A little Spanish, a real conversation.</h2>
-      <p>Meet Luna, your conversation partner. Practice everyday Spanish, make mistakes, and ask for help in English whenever you need it.</p>
+      <h2>A little {info.name}, a real conversation.</h2>
+      <p>Meet Luna, your conversation partner. Practice everyday {info.name}, make mistakes, and ask for help in English whenever you need it.</p>
     </div>
     <div className="study-layout">
       <div className="study-settings">
@@ -84,7 +86,7 @@ function ConversationPractice() {
         <label className="study-level">Your level<select value={level} disabled={busy} onChange={e => setLevel(e.target.value)}>
           <option value="A1">A1 · Just starting</option><option value="A2">A2 · Everyday basics</option><option value="B1">B1 · Keep the conversation going</option>
         </select></label>
-        <p className="muted">Luna can weave your most recently saved Spanish words into the conversation.</p>
+        <p className="muted">Luna can weave your most recently saved {info.name} words into the conversation.</p>
       </div>
       <div className="study-conversation">
         <div className={`study-orb ${connected && conversation.isSpeaking ? 'speaking' : ''}`} aria-hidden="true">L</div>
@@ -104,7 +106,7 @@ function ConversationPractice() {
     </div>
     <div className="study-transcript" ref={transcript} role="log" aria-label="Conversation transcript" aria-live="polite">
       <h3>Your conversation</h3>
-      {!messages.length && <p className="muted">Your conversation will appear here. Try “¿Puedes repetir?” to ask Luna to repeat, or “Más despacio, por favor” to slow things down.</p>}
+      {!messages.length && <p className="muted">Your conversation will appear here. Try “{info.repeat}” to ask Luna to repeat, or “{info.slower}” to slow things down.</p>}
       {messages.map(item => <div className={`study-message ${item.source}`} key={`${item.source}-${item.id}`}><strong>{item.source === 'user' ? 'You' : 'Luna'}</strong><p>{item.text}</p></div>)}
     </div>
   </section>;

@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { LANGUAGES, isLanguage } from '../../shared/languages.ts';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
@@ -13,7 +14,7 @@ async function load(name, context) {
 }
 async function panelFixture(initialRead = Promise.resolve({ user: { id: 'test-user' } })) {
   const nodes = new Map();
-  const element = () => ({ hidden: false, style: {}, handlers: {}, focus() {}, addEventListener(event, fn) { this.handlers[event] = fn; } });
+  const element = () => ({ hidden: false, style: {}, handlers: {}, append() {}, focus() {}, addEventListener(event, fn) { this.handlers[event] = fn; } });
   const node = id => { if (!nodes.has(id)) nodes.set(id, element()); return nodes.get(id); };
   const signOuts = [element(), element()];
   const shadow = { getElementById: node, querySelectorAll: selector => selector === '.sign-out' ? signOuts : [] };
@@ -24,7 +25,7 @@ async function panelFixture(initialRead = Promise.resolve({ user: { id: 'test-us
     storage: { local: { get: () => initialRead, set: async () => {}, remove: async keys => { removed.push([...keys]); } }, onChanged: { addListener: fn => { changed = fn; } } },
     runtime: { sendMessage: async msg => { if (msg.type === 'whoami') return initialRead; messages.push(msg.type); return { ok: true }; } },
   };
-  const exports = await load('panel', { chrome, console, LOGO_FULL: '', LOGO_MARK: '', PANEL_CSS: '', emptyDay: () => ({}), isStatsKey: () => false,
+  const exports = await load('panel', { chrome, console, LANGUAGES, isLanguage, getSettings: async () => ({ langTgt: 'es' }), LOGO_FULL: '', LOGO_MARK: '', PANEL_CSS: '', emptyDay: () => ({}), isStatsKey: () => false,
     document: { createElement: () => host, getElementById: () => ({}), addEventListener() {} } });
   exports.createPanel({ onLookupBack: () => { resets++; } });
   return { node, signOuts, removed, messages, changed: (...args) => changed(...args), resets: () => resets };

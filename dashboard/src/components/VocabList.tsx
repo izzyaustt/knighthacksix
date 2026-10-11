@@ -1,14 +1,15 @@
+import { languageName, type Language } from '../../../shared/languages.ts';
 import type { VocabWord } from '../api.ts';
 import { timeAgo } from '../dates.ts';
 
-export function VocabList({ words }: { words: VocabWord[] | undefined }) {
+export function VocabList({ words, language }: { words: VocabWord[] | undefined; language: Language }) {
   if (!words?.length) {
     return <p className="empty">No saved phrases yet. Click a phrase in the extension and choose Save phrase to start your list.</p>;
   }
   return (
     <div className="table-scroll">
       <table className="data-table">
-        <thead><tr><th>Spanish</th><th>English</th><th>Status</th><th>Saved</th></tr></thead>
+        <thead><tr><th>{languageName(language)}</th><th>English</th><th>Status</th><th>Saved</th></tr></thead>
         <tbody>
           {words.map((w) => (
             <tr key={w.word}>

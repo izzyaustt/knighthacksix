@@ -14,7 +14,8 @@ export const PANEL_CSS = `
 }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
-button { font: inherit; }
+button, select { font: inherit; }
+#learning-language { max-width: 180px; min-height: 40px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--ink); padding: 6px; }
 a { color: var(--ink); } a:hover { color: var(--olive); }
 :focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 

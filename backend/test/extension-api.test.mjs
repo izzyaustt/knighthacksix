@@ -33,8 +33,14 @@ test('mock extension API accepts captions/explanations and rejects invalid reque
     assert.equal(data.lines[0].source, 'hello world');
     assert.equal(data.lines[0].target, '[ES] hello world');
     assert.equal(data.lines[0].pairs[0].srcStart, 0);
+    for (const lang of ['fr', 'fil']) {
+      const translated = await post('/align', { videoId: 'test', lang, lines: [{ start: 1, end: 3, text: 'hello' }] });
+      assert.equal(translated.status, 200);
+      assert.equal((await translated.json()).lines[0].target, `[${lang.toUpperCase()}] hello`);
+      assert.equal((await post('/explain', { phrase: 'hello', lang, word_lookup: true, word_lang: 'en', detail: 'brief' })).status, 200);
+    }
     for (const body of [
-      { videoId: 'test', lang: 'fr', lines: [{ start: 1, end: 3, text: 'hello' }] },
+      { videoId: 'test', lang: 'to', lines: [{ start: 1, end: 3, text: 'hello' }] },
       { videoId: 'test', lines: [{ start: 3, end: 1, text: 'hello' }] },
       { videoId: 'test', lines: Array.from({ length: 31 }, () => ({ start: 0, end: 1, text: 'hello' })) },
     ]) assert.equal((await post('/align', body)).status, 400);
@@ -53,7 +59,7 @@ test('mock extension API accepts captions/explanations and rejects invalid reque
     assert.equal((await post('/explain', { phrase: 'word', word_lookup: true, detail: 'brief' })).status, 200);
     assert.equal((await post('/explain', { phrase: 'word', detail: 'invalid' })).status, 400);
     assert.equal((await post('/explain', { phrase: '' })).status, 400);
-    assert.equal((await post('/explain', { phrase: 'hola', lang: 'fr' })).status, 400);
+    assert.equal((await post('/explain', { phrase: 'hola', lang: 'to' })).status, 400);
 
     // User data routes require a session token; a user_id in the request is not enough.
     assert.equal((await fetch(base + '/stats/recent?user_id=demo-user')).status, 401);

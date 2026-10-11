@@ -49,6 +49,7 @@ button { font: inherit; }
 }
 .avatar:hover { background: #cfc3b4; }
 .account { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.language-select { font: inherit; color: var(--olive-ink); background: var(--surface); padding: 8px; border: 1px solid var(--line); border-radius: 8px; max-width: 160px; }
 .account-email { font-size: 14px; color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 240px; }
 
 /* ---------- Sign in ---------- */
@@ -96,6 +97,8 @@ button { font: inherit; }
   .app { grid-template-columns: 1fr; grid-template-rows: 56px auto 1fr; }
   .topbar { grid-template-columns: auto 1fr auto; padding-right: 16px; }
   .brand { padding-left: 16px; }
+  .account-email { display: none; }
+  .language-select { max-width: 130px; font-size: 12px; }
   .sidebar { display: flex; padding: 0; border-right: 0; border-bottom: 1px solid var(--line); }
   .nav-item { border-left: 0; border-bottom: 3px solid transparent; justify-content: center; }
   .nav-item[aria-current='page'] { border-bottom-color: var(--olive); }
