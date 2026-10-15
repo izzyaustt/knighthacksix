@@ -4,7 +4,7 @@
 
 LangTube is a Chrome extension that turns any YouTube video into an interactive language lesson for English speakers learning **Spanish, French, or Tagalog**. Keep watching what you love, and LangTube adds the learning on top.
 
-Built at **Knight Hacks IX**.
+Built at **Knight Hacks IX**. Demo Video: https://www.youtube.com/watch?v=oJh2-I6yrz4&time_continue=7&source_ve_path=MjM4NTE&embeds_referring_euri=https%3A%2F%2Fdevpost.com%2F
 <img width="1280" height="720" alt="image" src="https://github.com/user-attachments/assets/ad8a23e2-92a3-4135-a662-f93fde2e0990" />
 
 
