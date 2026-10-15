@@ -6,6 +6,8 @@ LangTube is a Chrome extension that turns any YouTube video into an interactive 
 
 Built at **Knight Hacks IX**.
 
+<img width="1280" height="720" alt="image" src="https://github.com/user-attachments/assets/b5e34066-b2e8-4b3e-88ca-35214fbd9209" />
+
 ---
 
 ## ✨ Features
